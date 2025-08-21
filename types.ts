@@ -11,6 +11,16 @@ export enum InvoiceStatus {
   Overdue = 'Overdue',
 }
 
+export enum Currency {
+  USD = 'USD',
+  EUR = 'EUR',
+  GBP = 'GBP',
+  INR = 'INR',
+  CAD = 'CAD',
+  AUD = 'AUD',
+  JPY = 'JPY',
+}</export>
+
 export interface Client {
   id: string;
   name: string;
@@ -25,7 +35,7 @@ export interface Project {
   name: string;
   description: string;
   hourlyRate: number;
-  currency: string;
+  currency: Currency;
   status: ProjectStatus;
 }
 
@@ -35,6 +45,8 @@ export interface TimeEntry {
   date: string; // YYYY-MM-DD
   description: string;
   hours: number;
+  startTime?: string; // HH:MM format
+  stopTime?: string; // HH:MM format
   isBillable: boolean;
   invoiceId: string | null;
 }

@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../App';
 import type { Client, Project } from '../types';
-import { ProjectStatus } from '../types';
+import { ProjectStatus, Currency } from '../types';
 import { Button, Modal, Input, Textarea, Label, Card, CardHeader, CardTitle, CardContent, Select } from './ui/index';
 
 // --- ICONS ---
@@ -60,7 +60,15 @@ const ClientProjectForm = ({
                     <div><Label htmlFor="description">Description</Label><Textarea id="description" name="description" value={formData.description || ''} onChange={handleChange} /></div>
                     <div className="grid grid-cols-2 gap-4">
                         <div><Label htmlFor="hourlyRate">Hourly Rate</Label><Input id="hourlyRate" name="hourlyRate" type="number" step="0.01" value={formData.hourlyRate || ''} onChange={handleChange} required /></div>
-                        <div><Label htmlFor="currency">Currency</Label><Input id="currency" name="currency" value={formData.currency || ''} onChange={handleChange} required placeholder="e.g. USD" /></div>
+                        <div>
+                            <Label htmlFor="currency">Currency</Label>
+                            <Select id="currency" name="currency" value={formData.currency || ''} onChange={handleChange} required>
+                                <option value="">Select currency...</option>
+                                {Object.values(Currency).map(curr => (
+                                    <option key={curr} value={curr}>{curr}</option>
+                                ))}
+                            </Select>
+                        </div>
                     </div>
                  </>
             )}

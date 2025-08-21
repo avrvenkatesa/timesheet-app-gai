@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAppContext } from '../App';
 import type { TimeEntry } from '../types';
@@ -56,7 +55,7 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
   const { projects, clients } = useAppContext();
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedClientId, setSelectedClientId] = useState('');
-  
+
   const activeProjects = projects.filter(p => p.status === ProjectStatus.Active);
   const clientProjects = selectedClientId 
     ? activeProjects.filter(p => p.clientId === selectedClientId)
@@ -145,7 +144,7 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
               )}
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="timer-client">Client</Label>
@@ -211,7 +210,7 @@ const TemplateModal = ({ isOpen, onClose, onSave, templates }: {
     defaultHours: 1,
     isBillable: true
   });
-  
+
   const activeProjects = projects.filter(p => p.status === ProjectStatus.Active);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -336,20 +335,20 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         description: editEntry?.description || '',
         hours: editEntry?.hours || 0,
         isBillable: editEntry?.isBillable ?? true,
+        startTime: editEntry?.startTime || '',
+        stopTime: editEntry?.stopTime || ''
     });
-    const [startTime, setStartTime] = useState(editEntry ? '' : '');
-    const [endTime, setEndTime] = useState(editEntry ? '' : '');
     const [validationError, setValidationError] = useState('');
-    
+
     const activeProjects = projects.filter(p => p.status === ProjectStatus.Active);
 
     // Check for overlapping time entries
     const checkForOverlap = (date: string, startTime: string, endTime: string, excludeId?: string) => {
         if (!startTime || !endTime) return null;
-        
+
         const start = new Date(`${date}T${startTime}`);
         const end = new Date(`${date}T${endTime}`);
-        
+
         if (start >= end) {
             return 'End time must be after start time';
         }
@@ -357,7 +356,7 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         const overlapping = timeEntries.find(entry => {
             if (excludeId && entry.id === excludeId) return false;
             if (entry.date !== date) return false;
-            
+
             // For existing entries without specific times, we can't check overlap
             // This is a simplified check - in a real app you'd store start/end times
             return false;
@@ -366,24 +365,37 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         return null;
     };
 
-    const calculateHoursFromTimes = (start: string, end: string) => {
-        if (!start || !end) return 0;
-        const startDate = new Date(`2000-01-01T${start}`);
-        const endDate = new Date(`2000-01-01T${end}`);
-        if (endDate <= startDate) return 0;
-        return (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+    // Calculate hours from start and stop time
+    const calculateHours = (startTime: string, stopTime: string) => {
+        if (!startTime || !stopTime) return 0;
+
+        const [startHour, startMin] = startTime.split(':').map(Number);
+        const [stopHour, stopMin] = stopTime.split(':').map(Number);
+
+        const startMinutes = startHour * 60 + startMin;
+        let stopMinutes = stopHour * 60 + stopMin;
+
+        // Handle case where stop time is next day
+        if (stopMinutes < startMinutes) {
+            stopMinutes += 24 * 60;
+        }
+
+        return (stopMinutes - startMinutes) / 60;
     };
 
-    useEffect(() => {
-        if (startTime && endTime) {
-            const hours = calculateHoursFromTimes(startTime, endTime);
-            setFormData(prev => ({ ...prev, hours }));
-            
-            const error = checkForOverlap(formData.date, startTime, endTime, editEntry?.id);
-            setValidationError(error || '');
+    const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        const updatedData = { ...formData, [name]: value };
+
+        if (name === 'startTime' && updatedData.stopTime) {
+            updatedData.hours = calculateHours(value, updatedData.stopTime);
+        } else if (name === 'stopTime' && updatedData.startTime) {
+            updatedData.hours = calculateHours(updatedData.startTime, value);
         }
-    }, [startTime, endTime, formData.date, editEntry?.id]);
-    
+
+        setFormData(updatedData);
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         if (type === 'checkbox') {
@@ -393,6 +405,16 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
              setFormData(prev => ({ ...prev, [name]: name === 'hours' ? parseFloat(value) || 0 : value }));
         }
     };
+
+    useEffect(() => {
+        if (formData.startTime && formData.stopTime) {
+            const hours = calculateHours(formData.startTime, formData.stopTime);
+            setFormData(prev => ({ ...prev, hours }));
+
+            const error = checkForOverlap(formData.date, formData.startTime, formData.stopTime, editEntry?.id);
+            setValidationError(error || '');
+        }
+    }, [formData.startTime, formData.stopTime, formData.date, editEntry?.id]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -440,39 +462,16 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
                     </div>
                 </div>
             )}
-            
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <Label htmlFor="date">Date</Label>
-                    <Input id="date" name="date" type="date" value={formData.date} onChange={handleChange} required />
-                </div>
-                 <div>
-                    <Label htmlFor="hours">Hours</Label>
-                    <Input id="hours" name="hours" type="number" step="0.01" min="0" value={formData.hours} onChange={handleChange} required />
-                </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label htmlFor="date">Date</Label><Input id="date" name="date" type="date" value={formData.date || ''} onChange={handleChange} required /></div>
+                <div><Label htmlFor="hours">Hours</Label><Input id="hours" name="hours" type="number" step="0.25" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
             </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <Label htmlFor="start-time">Start Time (Optional)</Label>
-                    <Input
-                        id="start-time"
-                        type="time"
-                        value={startTime}
-                        onChange={(e) => setStartTime(e.target.value)}
-                    />
-                </div>
-                <div>
-                    <Label htmlFor="end-time">End Time (Optional)</Label>
-                    <Input
-                        id="end-time"
-                        type="time"
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                    />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div><Label htmlFor="startTime">Start Time</Label><Input id="startTime" name="startTime" type="time" value={formData.startTime || ''} onChange={handleTimeChange} /></div>
+                <div><Label htmlFor="stopTime">Stop Time</Label><Input id="stopTime" name="stopTime" type="time" value={formData.stopTime || ''} onChange={handleTimeChange} /></div>
             </div>
-            
+
             {validationError && (
                 <div className="p-3 bg-red-100 border border-red-300 rounded text-red-700 text-sm">
                     {validationError}
@@ -569,10 +568,10 @@ export default function TimeEntries() {
 
     const handleTimerStop = () => {
         if (!timer.isRunning) return;
-        
+
         const totalTime = timer.pausedTime + (Date.now() - (timer.startTime || 0));
         const hours = totalTime / (1000 * 60 * 60);
-        
+
         if (hours > 0) {
             addTimeEntry({
                 date: new Date().toISOString().split('T')[0],
@@ -580,10 +579,12 @@ export default function TimeEntries() {
                 description: timer.description,
                 hours: Math.round(hours * 100) / 100, // Round to 2 decimal places
                 isBillable: true,
-                invoiceId: null
+                invoiceId: null,
+                startTime: '', // Reset timer fields
+                stopTime: ''
             });
         }
-        
+
         setTimer({
             isRunning: false,
             isPaused: false,
@@ -638,16 +639,16 @@ export default function TimeEntries() {
         setShowBulkActions(newSelected.size > 0);
     };
 
-    const handleSelectAll = () => {
-        if (selectedEntries.size === filteredEntries.length) {
-            setSelectedEntries(new Set());
-            setShowBulkActions(false);
-        } else {
-            setSelectedEntries(new Set(filteredEntries.map(e => e.id)));
-            setShowBulkActions(true);
-        }
+    const toggleAllEntries = () => {
+      if (selectedEntries.size === filteredEntries.length) {
+          setSelectedEntries(new Set());
+          setShowBulkActions(false);
+      } else {
+          setSelectedEntries(new Set(filteredEntries.map(e => e.id)));
+          setShowBulkActions(true);
+      }
     };
-
+    
     const handleBulkDelete = () => {
         if (window.confirm(`Delete ${selectedEntries.size} selected entries?`)) {
             selectedEntries.forEach(id => deleteTimeEntry(id));
@@ -675,7 +676,7 @@ export default function TimeEntries() {
             return `${amount.toFixed(2)} ${currency}`;
         }
     };
-    
+
     return (
         <div>
             <div className="flex justify-between items-center mb-6">
@@ -791,17 +792,19 @@ export default function TimeEntries() {
                         <table className="w-full text-sm text-left text-slate-500">
                              <thead className="text-xs text-slate-700 uppercase bg-slate-50">
                                 <tr>
-                                    <th scope="col" className="px-6 py-3">
+                                    <th scope="col" className="px-6 py-3 w-12">
                                         <input
                                             type="checkbox"
                                             checked={selectedEntries.size === filteredEntries.length && filteredEntries.length > 0}
-                                            onChange={handleSelectAll}
-                                            className="h-4 w-4 rounded border-slate-300"
+                                            onChange={toggleAllEntries}
+                                            className="rounded"
                                         />
                                     </th>
                                     <th scope="col" className="px-6 py-3">Date</th>
                                     <th scope="col" className="px-6 py-3">Client / Project</th>
                                     <th scope="col" className="px-6 py-3">Description</th>
+                                    <th scope="col" className="px-6 py-3 text-center">Start Time</th>
+                                    <th scope="col" className="px-6 py-3 text-center">Stop Time</th>
                                     <th scope="col" className="px-6 py-3 text-right">Hours</th>
                                     <th scope="col" className="px-6 py-3 text-right">Billable Amount</th>
                                     <th scope="col" className="px-6 py-3 text-center">Status</th>
@@ -813,7 +816,7 @@ export default function TimeEntries() {
                                    const project = projects.find(p => p.id === entry.projectId);
                                    const client = project ? clients.find(c => c.id === project.clientId) : null;
                                    const billableAmount = (entry.isBillable && project) ? entry.hours * project.hourlyRate : 0;
-                                   
+
                                    return (
                                      <tr key={entry.id} className={`bg-white border-b hover:bg-slate-50 ${selectedEntries.has(entry.id) ? 'bg-blue-50' : ''}`}>
                                        <td className="px-6 py-4">
@@ -830,6 +833,8 @@ export default function TimeEntries() {
                                            <div className="text-slate-500">{project?.name}</div>
                                        </td>
                                        <td className="px-6 py-4 max-w-sm truncate">{entry.description}</td>
+                                       <td className="px-6 py-4 text-center">{entry.startTime || '—'}</td>
+                                       <td className="px-6 py-4 text-center">{entry.stopTime || '—'}</td>
                                        <td className="px-6 py-4 text-right font-medium text-slate-900">{entry.hours.toFixed(2)}</td>
                                        <td className="px-6 py-4 text-right font-medium text-slate-900">
                                             {billableAmount > 0 && project ? formatCurrency(billableAmount, project.currency) : '—'}
