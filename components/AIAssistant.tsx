@@ -4,7 +4,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { useAppContext } from '../App';
 import { Card, CardHeader, CardTitle, CardContent, Button, Input, Textarea, Select, Label } from './ui';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY as string });
 
 // --- Helper Components ---
 const LoadingSpinner = () => (
