@@ -45,9 +45,14 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
             }
         });
 
-        return Object.entries(amountByCurrency).map(([currency, amount]) => 
-            new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount)
-        ).join(' + ');
+        return Object.entries(amountByCurrency).map(([currency, amount]) => {
+            try {
+                if (!currency) return amount.toFixed(2);
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+            } catch (e) {
+                return `${amount.toFixed(2)} ${currency}`;
+            }
+        }).join(' + ');
     };
 
     const now = new Date();

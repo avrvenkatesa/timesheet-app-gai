@@ -49,4 +49,12 @@ export interface Invoice {
   timeEntryIds: string[];
 }
 
-export type View = 'dashboard' | 'clients-projects' | 'time-entries' | 'invoicing';
+export interface BillerInfo {
+  name: string;
+  address: string;
+  email: string;
+  phone: string;
+  website: string;
+}
+
+export type View = 'dashboard' | 'clients-projects' | 'time-entries' | 'invoicing' | 'ai-assistant' | 'settings';

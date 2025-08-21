@@ -92,7 +92,12 @@ export default function TimeEntries() {
     };
 
     const formatCurrency = (amount: number, currency: string) => {
-        return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+        try {
+            if (!currency) return amount.toFixed(2);
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+        } catch (e) {
+            return `${amount.toFixed(2)} ${currency}`;
+        }
     };
     
     return (
