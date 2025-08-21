@@ -19,7 +19,7 @@ export enum Currency {
   CAD = 'CAD',
   AUD = 'AUD',
   JPY = 'JPY',
-}</export>
+}
 
 export interface Client {
   id: string;
