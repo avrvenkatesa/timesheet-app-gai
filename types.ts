@@ -214,4 +214,90 @@ export interface RevenueReport {
   trend: { date: string; amount: number }[];
 }
 
+export interface Expense {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  currency: Currency;
+  category: ExpenseCategory;
+  isBusinessExpense: boolean;
+  receiptUrl?: string;
+  projectId?: string;
+  tags: string[];
+  aiSuggested?: boolean;
+}
+
+export enum ExpenseCategory {
+  Software = 'Software',
+  Hardware = 'Hardware',
+  Travel = 'Travel',
+  Meals = 'Meals',
+  Office = 'Office',
+  Marketing = 'Marketing',
+  Education = 'Education',
+  Internet = 'Internet',
+  Phone = 'Phone',
+  Utilities = 'Utilities',
+  Other = 'Other'
+}
+
+export interface Contract {
+  id: string;
+  clientId: string;
+  projectId?: string;
+  contractType: ContractType;
+  title: string;
+  content: string;
+  status: ContractStatus;
+  createdDate: string;
+  signedDate?: string;
+  expiryDate?: string;
+  value?: number;
+  currency?: Currency;
+}
+
+export enum ContractType {
+  ServiceAgreement = 'Service Agreement',
+  ProjectContract = 'Project Contract',
+  RetainerAgreement = 'Retainer Agreement',
+  NDA = 'Non-Disclosure Agreement',
+  MaintenanceContract = 'Maintenance Contract'
+}
+
+export enum ContractStatus {
+  Draft = 'Draft',
+  Sent = 'Sent',
+  Signed = 'Signed',
+  Expired = 'Expired'
+}
+
+export interface BusinessInsight {
+  id: string;
+  type: InsightType;
+  title: string;
+  description: string;
+  impact: 'High' | 'Medium' | 'Low';
+  actionable: boolean;
+  data: any;
+  generatedDate: string;
+}
+
+export enum InsightType {
+  Revenue = 'Revenue',
+  Productivity = 'Productivity',
+  ClientBehavior = 'Client Behavior',
+  Pricing = 'Pricing',
+  TimeManagement = 'Time Management'
+}
+
+export interface PricingSuggestion {
+  projectType: string;
+  suggestedHourlyRate: number;
+  suggestedFixedPrice?: number;
+  confidence: number;
+  reasoning: string;
+  basedOnProjects: string[];
+}
+
 export type View = 'dashboard' | 'clients-projects' | 'time-entries' | 'invoicing' | 'ai-assistant' | 'settings' | 'reports';

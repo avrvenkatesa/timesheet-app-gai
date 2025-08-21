@@ -140,6 +140,12 @@ interface AppContextType {
     getProjectAnalytics: (projectId: string) => any; // Placeholder for analytics data
     generateTimeReport: (projectId?: string) => TimeEntry[]; // Placeholder for report generation
     generateRevenueReport: (clientId?: string) => Invoice[]; // Placeholder for report generation
+
+    // Enhanced AI Assistant Methods
+    addContract?: (contract: Omit<Contract, 'id'>) => void;
+    addExpense?: (expense: Omit<Expense, 'id'>) => void;
+    generateBusinessInsights?: (insights: BusinessInsight[]) => void;
+    generatePricingSuggestion?: (suggestion: PricingSuggestion) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -297,6 +303,27 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             return invoices.filter(invoice => invoiceIdsForClient.includes(invoice.id));
         }
         return invoices; // Return all invoices if no client is specified
+    };
+
+    // Enhanced AI Assistant Methods
+    const addContract = (contract: Omit<Contract, 'id'>) => {
+        // This would be implemented to save contracts to state/storage
+        console.log('Contract saved:', contract);
+    };
+
+    const addExpense = (expense: Omit<Expense, 'id'>) => {
+        // This would be implemented to save expenses to state/storage
+        console.log('Expense saved:', expense);
+    };
+
+    const generateBusinessInsights = (insights: BusinessInsight[]) => {
+        // This would be implemented to save insights to state/storage
+        console.log('Business insights generated:', insights);
+    };
+
+    const generatePricingSuggestion = (suggestion: PricingSuggestion) => {
+        // This would be implemented to save pricing suggestions
+        console.log('Pricing suggestion generated:', suggestion);
     };
 
 
@@ -500,6 +527,11 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         getProjectAnalytics,
         generateTimeReport,
         generateRevenueReport,
+        // Enhanced AI Assistant methods
+        addContract,
+        addExpense,
+        generateBusinessInsights,
+        generatePricingSuggestion,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
