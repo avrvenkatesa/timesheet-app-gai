@@ -70,16 +70,16 @@ const BillerInfoForm = () => {
 };
 
 export default function Settings() {
+    const { clients, projects, timeEntries, invoices, billerInfo } = useAppContext();
     const [isDriveConnected, setIsDriveConnected] = useState(false);
 
-    // In a real app, this would use the context to get all data.
     const handleExport = () => {
         const data = {
-            clients: JSON.parse(localStorage.getItem('clients') || '[]'),
-            projects: JSON.parse(localStorage.getItem('projects') || '[]'),
-            timeEntries: JSON.parse(localStorage.getItem('timeEntries') || '[]'),
-            invoices: JSON.parse(localStorage.getItem('invoices') || '[]'),
-            billerInfo: JSON.parse(localStorage.getItem('billerInfo') || '{}'),
+            clients,
+            projects,
+            timeEntries,
+            invoices,
+            billerInfo,
         };
         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
         const link = document.createElement("a");
