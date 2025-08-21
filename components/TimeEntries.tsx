@@ -833,8 +833,20 @@ export default function TimeEntries() {
                                            <div className="text-slate-500">{project?.name}</div>
                                        </td>
                                        <td className="px-6 py-4 max-w-sm truncate">{entry.description}</td>
-                                       <td className="px-6 py-4 text-center">{entry.startTime || '—'}</td>
-                                       <td className="px-6 py-4 text-center">{entry.stopTime || '—'}</td>
+                                       <td className="px-6 py-4 text-center">
+                                           {entry.startTime ? new Date(`2000-01-01T${entry.startTime}`).toLocaleTimeString('en-US', { 
+                                               hour: '2-digit', 
+                                               minute: '2-digit',
+                                               hour12: true 
+                                           }) : '—'}
+                                       </td>
+                                       <td className="px-6 py-4 text-center">
+                                           {entry.stopTime ? new Date(`2000-01-01T${entry.stopTime}`).toLocaleTimeString('en-US', { 
+                                               hour: '2-digit', 
+                                               minute: '2-digit',
+                                               hour12: true 
+                                           }) : '—'}
+                                       </td>
                                        <td className="px-6 py-4 text-right font-medium text-slate-900">{entry.hours.toFixed(2)}</td>
                                        <td className="px-6 py-4 text-right font-medium text-slate-900">
                                             {billableAmount > 0 && project ? formatCurrency(billableAmount, project.currency) : '—'}
