@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../App';
 import type { Invoice, Client, TimeEntry, Project, Payment, RecurringInvoiceTemplate, Currency, ExchangeRate } from '../types';
@@ -261,8 +259,10 @@ const RecurringTemplateModal = ({ onClose }: { onClose: () => void }) => {
                             <option value="USD">USD</option>
                             <option value="EUR">EUR</option>
                             <option value="GBP">GBP</option>
+                            <option value="INR">INR</option>
                             <option value="CAD">CAD</option>
                             <option value="AUD">AUD</option>
+                            <option value="JPY">JPY</option>
                         </Select>
                     </div>
                 </div>
@@ -378,6 +378,10 @@ const FinancialReports = () => {
                         <option value="USD">USD</option>
                         <option value="EUR">EUR</option>
                         <option value="GBP">GBP</option>
+                        <option value="INR">INR</option>
+                        <option value="CAD">CAD</option>
+                        <option value="AUD">AUD</option>
+                        <option value="JPY">JPY</option>
                     </Select>
                 </div>
             </div>
@@ -444,16 +448,16 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
     const { billerInfo, clients, projects, timeEntries, updateInvoice, payments } = useAppContext();
     const [showPaymentModal, setShowPaymentModal] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    
+
     const client = clients.find(c => c.id === invoice.clientId);
     const invoiceEntries = timeEntries.filter(t => invoice.timeEntryIds.includes(t.id));
     const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
-    
+
     const total = useMemo(() => {
         if (invoice.timeEntryIds.length === 0) {
             return formatCurrency(invoice.totalAmount, invoice.currency);
         }
-        
+
         const totals: { [key: string]: number } = {};
         invoiceEntries.forEach(entry => {
             const project = projects.find(p => p.id === entry.projectId);
@@ -476,7 +480,7 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
         try {
             const canvas = await html2canvas(invoiceContent, { scale: 2 });
             const imgData = canvas.toDataURL('image/png');
-            
+
             const pdf = new jsPDF({
                 orientation: 'portrait',
                 unit: 'mm',
@@ -486,7 +490,7 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
             const pageWidth = 210;
             const pageHeight = 297;
             const margin = 15;
-            
+
             const contentWidth = pageWidth - margin * 2;
             const contentHeight = pageHeight - margin * 2;
 
@@ -583,7 +587,7 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
                             </div>
                         </div>
                     </div>
-                    
+
                     {invoiceEntries.length > 0 ? (
                         <table className="w-full text-sm">
                             <thead className="bg-slate-50">
@@ -723,7 +727,7 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             notes: isManualInvoice ? description : undefined
         });
     };
-    
+
     const invoiceTotal = useMemo(() => {
         if (isManualInvoice) {
             return manualAmount ? formatCurrency(parseFloat(manualAmount), manualCurrency) : '$0.00';
@@ -790,8 +794,10 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
                                         <option value="USD">USD</option>
                                         <option value="EUR">EUR</option>
                                         <option value="GBP">GBP</option>
+                                        <option value="INR">INR</option>
                                         <option value="CAD">CAD</option>
                                         <option value="AUD">AUD</option>
+                                        <option value="JPY">JPY</option>
                                     </Select>
                                 </div>
                             </div>
@@ -857,7 +863,7 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
                     <span className="text-lg font-bold text-primary-600">{invoiceTotal || '$0.00'}</span>
                 </div>
             </div>
-            
+
             <div className="flex justify-end space-x-2">
                 <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
                 <Button 
@@ -879,7 +885,7 @@ export default function Invoicing() {
     const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
     const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
     const [activeTab, setActiveTab] = useState<'invoices' | 'recurring' | 'reports'>('invoices');
-    
+
     useEffect(() => {
         if (viewingInvoice) {
             const updatedInvoice = invoices.find(inv => inv.id === viewingInvoice.id);
@@ -900,7 +906,7 @@ export default function Invoicing() {
         createInvoice(data);
         setIsCreateModalOpen(false);
     };
-    
+
     const getInvoiceTotal = (invoice: Invoice) => {
         return formatCurrency(invoice.totalAmount, invoice.currency);
     };
@@ -970,7 +976,7 @@ export default function Invoicing() {
                     </button>
                 </nav>
             </div>
-            
+
             {/* Tab Content */}
             {activeTab === 'invoices' && (
                 <Card>
@@ -1087,4 +1093,3 @@ export default function Invoicing() {
         </div>
     );
 }
-
