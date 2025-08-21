@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
-import type { Client, Project, TimeEntry, Invoice, BillerInfo, View } from './types';
+import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate } from './types';
 import { ProjectStatus, InvoiceStatus, Currency } from './types';
 import { dataManager, type AppData } from './utils/dataManager';
 import Dashboard from './components/Dashboard';
@@ -81,6 +81,10 @@ interface AppContextType {
     projects: Project[];
     timeEntries: TimeEntry[];
     invoices: Invoice[];
+    payments: Payment[];
+    recurringTemplates: RecurringInvoiceTemplate[];
+    invoiceReminders: InvoiceReminder[];
+    exchangeRates: ExchangeRate[];
     billerInfo: BillerInfo;
     syncStatus: 'idle' | 'syncing' | 'error' | 'success';
     lastSyncTime: number | null;
@@ -89,16 +93,26 @@ interface AppContextType {
     deleteClient: (clientId: string) => void;
     addProject: (project: Omit<Project, 'id'>) => void;
     updateProject: (project: Project) => void;
+    deleteProject: (projectId: string) => void;
     addTimeEntry: (entry: Omit<TimeEntry, 'id'>) => void;
     updateTimeEntry: (entry: TimeEntry) => void;
     deleteTimeEntry: (entryId: string) => void;
     createInvoice: (invoiceData: Omit<Invoice, 'id' | 'invoiceNumber'>) => void;
     updateInvoice: (invoice: Invoice) => void;
+    addPayment: (payment: Omit<Payment, 'id'>) => void;
+    removePayment: (paymentId: string) => void;
+    addRecurringTemplate: (template: Omit<RecurringInvoiceTemplate, 'id'>) => void;
+    updateRecurringTemplate: (template: RecurringInvoiceTemplate) => void;
+    deleteRecurringTemplate: (templateId: string) => void;
+    generateRecurringInvoices: () => void;
+    updateExchangeRate: (rate: ExchangeRate) => void;
+    convertCurrency: (amount: number, fromCurrency: Currency, toCurrency: Currency) => number;
     updateBillerInfo: (info: BillerInfo) => void;
     exportData: () => Promise<string>;
     importData: (jsonString: string, mergeMode?: 'replace' | 'merge') => Promise<{success: boolean; errors: string[]; warnings: string[]}>;
     recoverData: () => Promise<boolean>;
     triggerSync: () => Promise<void>;
+    syncData: (snapshot: AppData) => Promise<AppData>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -118,6 +132,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const [projects, setProjects] = useLocalStorage<Project[]>('projects', initialProjects);
     const [timeEntries, setTimeEntries] = useLocalStorage<TimeEntry[]>('timeEntries', initialTimeEntries);
     const [invoices, setInvoices] = useLocalStorage<Invoice[]>('invoices', initialInvoices);
+    const [payments, setPayments] = useLocalStorage<Payment[]>('payments', []);
+    const [recurringTemplates, setRecurringTemplates] = useLocalStorage<RecurringInvoiceTemplate[]>('recurringTemplates', []);
+    const [invoiceReminders, setInvoiceReminders] = useLocalStorage<InvoiceReminder[]>('invoiceReminders', []);
+    const [exchangeRates, setExchangeRates] = useLocalStorage<ExchangeRate[]>('exchangeRates', []);
     const [billerInfo, setBillerInfo] = useLocalStorage<BillerInfo>('billerInfo', initialBillerInfo);
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
     const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
@@ -128,6 +146,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const addProject = (project: Omit<Project, 'id'>) => setProjects(prev => [...prev, { ...project, id: generateId() }]);
     const updateProject = (updatedProject: Project) => setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+    const deleteProject = (projectId: string) => setProjects(prev => prev.filter(p => p.id !== projectId));
 
     const addTimeEntry = (entry: Omit<TimeEntry, 'id'>) => setTimeEntries(prev => [...prev, { ...entry, id: generateId() }].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     const updateTimeEntry = (updatedEntry: TimeEntry) => setTimeEntries(prev => prev.map(t => t.id === updatedEntry.id ? updatedEntry : t));
@@ -148,11 +167,61 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const updateInvoice = (updatedInvoice: Invoice) => setInvoices(prev => prev.map(i => i.id === updatedInvoice.id ? updatedInvoice : i));
 
+    const addPayment = (payment: Omit<Payment, 'id'>) => {
+        const newPayment: Payment = { ...payment, id: generateId() };
+        setPayments(prev => [...prev, newPayment]);
+        setInvoices(prev => prev.map(invoice => 
+            invoice.id === newPayment.invoiceId ? { ...invoice, status: InvoiceStatus.Paid } : invoice
+        ));
+    };
+    const removePayment = (paymentId: string) => setPayments(prev => prev.filter(p => p.id !== paymentId));
+
+    const addRecurringTemplate = (template: Omit<RecurringInvoiceTemplate, 'id'>) => {
+        const newTemplate: RecurringInvoiceTemplate = { ...template, id: generateId() };
+        setRecurringTemplates(prev => [...prev, newTemplate]);
+    };
+    const updateRecurringTemplate = (template: RecurringInvoiceTemplate) => setRecurringTemplates(prev => prev.map(t => t.id === template.id ? template : t));
+    const deleteRecurringTemplate = (templateId: string) => setRecurringTemplates(prev => prev.filter(t => t.id !== templateId));
+
+    const generateRecurringInvoices = () => {
+        recurringTemplates.forEach(template => {
+            // Logic to check if a new invoice should be generated based on the template's schedule
+            // This would involve checking the last generated invoice date and the recurrence pattern
+            // For now, a placeholder
+            console.log(`Checking recurring template: ${template.name}`);
+        });
+    };
+
+    const updateExchangeRate = (rate: ExchangeRate) => {
+        setExchangeRates(prev => {
+            const existingIndex = prev.findIndex(r => r.fromCurrency === rate.fromCurrency && r.toCurrency === rate.toCurrency);
+            if (existingIndex > -1) {
+                prev[existingIndex] = rate;
+                return [...prev];
+            } else {
+                return [...prev, rate];
+            }
+        });
+    };
+
+    const convertCurrency = (amount: number, fromCurrency: Currency, toCurrency: Currency): number => {
+        if (fromCurrency === toCurrency) {
+            return amount;
+        }
+        const rate = exchangeRates.find(r => r.fromCurrency === fromCurrency && r.toCurrency === toCurrency);
+        if (rate) {
+            return amount * rate.rate;
+        }
+        // Fallback or error handling if rate is not found
+        console.warn(`Exchange rate not found for ${fromCurrency} to ${toCurrency}`);
+        return amount; // Or throw an error, or use a default rate
+    };
+
     const updateBillerInfo = (info: BillerInfo) => setBillerInfo(info);
 
     // Enhanced data management methods
     const exportData = async (): Promise<string> => {
-        const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo);
+        const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates);
         return await dataManager.exportData(snapshot);
     };
 
@@ -166,6 +235,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setTimeEntries(result.data.timeEntries);
                 setInvoices(result.data.invoices);
                 setBillerInfo(result.data.billerInfo);
+                setPayments(result.data.payments || []);
+                setRecurringTemplates(result.data.recurringTemplates || []);
+                setInvoiceReminders(result.data.invoiceReminders || []);
+                setExchangeRates(result.data.exchangeRates || []);
             } else {
                 // Merge mode - combine data intelligently
                 setClients(prev => {
@@ -191,6 +264,19 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                     const newInvoices = result.data!.invoices.filter(i => !existingIds.has(i.id));
                     return [...prev, ...newInvoices];
                 });
+
+                setPayments(prev => {
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const newPayments = result.data!.payments.filter(p => !existingIds.has(p.id));
+                    return [...prev, ...newPayments];
+                });
+
+                setRecurringTemplates(prev => {
+                    const existingIds = new Set(prev.map(t => t.id));
+                    const newTemplates = result.data!.recurringTemplates.filter(t => !existingIds.has(t.id));
+                    return [...prev, ...newTemplates];
+                });
+                // Invoice reminders and exchange rates could also be merged similarly
             }
         }
 
@@ -207,6 +293,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setTimeEntries(recoveredData.timeEntries);
                 setInvoices(recoveredData.invoices);
                 setBillerInfo(recoveredData.billerInfo);
+                setPayments(recoveredData.payments || []);
+                setRecurringTemplates(recoveredData.recurringTemplates || []);
+                setInvoiceReminders(recoveredData.invoiceReminders || []);
+                setExchangeRates(recoveredData.exchangeRates || []);
                 setSyncStatus('success');
                 setLastSyncTime(Date.now());
                 return true;
@@ -223,7 +313,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const triggerSync = async (): Promise<void> => {
         setSyncStatus('syncing');
         try {
-            const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo);
+            const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates);
             const syncedData = await dataManager.syncData(snapshot);
 
             // Update state if synced data is different
@@ -233,6 +323,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setTimeEntries(syncedData.timeEntries);
                 setInvoices(syncedData.invoices);
                 setBillerInfo(syncedData.billerInfo);
+                setPayments(syncedData.payments || []);
+                setRecurringTemplates(syncedData.recurringTemplates || []);
+                setInvoiceReminders(syncedData.invoiceReminders || []);
+                setExchangeRates(syncedData.exchangeRates || []);
             }
 
             setSyncStatus('success');
@@ -241,6 +335,15 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             console.error('Sync failed:', error);
             setSyncStatus('error');
         }
+    };
+
+    // Placeholder for syncData implementation if it's different from triggerSync logic
+    const syncData = async (snapshot: AppData): Promise<AppData> => {
+        // This might involve more complex logic, e.g., merging strategies, conflict resolution
+        // For now, assume it's similar to triggerSync's data fetching
+        console.log("Simulating syncData with snapshot:", snapshot);
+        // In a real app, this would fetch remote data and return it
+        return snapshot; // Returning the same snapshot as a mock
     };
 
     // Auto-sync on data changes
@@ -253,7 +356,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
         const debounceTimer = setTimeout(autoSync, 2000); // Debounce for 2 seconds
         return () => clearTimeout(debounceTimer);
-    }, [clients, projects, timeEntries, invoices, billerInfo]);
+    }, [clients, projects, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates]);
 
     // Initial sync on app load
     useEffect(() => {
@@ -261,14 +364,17 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const value = {
-        clients, projects, timeEntries, invoices, billerInfo,
-        syncStatus, lastSyncTime,
+        clients, projects, timeEntries, invoices, billerInfo, payments, 
+        recurringTemplates, invoiceReminders, exchangeRates,
         addClient, updateClient, deleteClient,
-        addProject, updateProject,
+        addProject, updateProject, deleteProject,
         addTimeEntry, updateTimeEntry, deleteTimeEntry,
         createInvoice, updateInvoice,
+        addPayment, removePayment,
+        addRecurringTemplate, updateRecurringTemplate, deleteRecurringTemplate,
+        generateRecurringInvoices, updateExchangeRate, convertCurrency,
         updateBillerInfo,
-        exportData, importData, recoverData, triggerSync,
+        exportData, importData, recoverData, triggerSync, syncData,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -279,7 +385,7 @@ const TimeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-
 const FolderIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>;
 const InvoiceIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
 const DashboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>;
-const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0018.49 9.51l1.106.276a1 1 0 01.894 1.447l.276 1.106a1 1 0 010 1.788l-1.106.276a1 1 0 00-.49 1.491l1.106.276a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49.49l-.276 1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.491.49l-.276-1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
+const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0018.49 9.51l1.106.276a1 1 0 01.894 1.447l.276 1.106a1 1 0 010 1.788l-1.106.276a1 1 0 01-.49 1.491l1.106.276a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49.49l-.276 1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.491.49l-.276-1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
 const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 
 

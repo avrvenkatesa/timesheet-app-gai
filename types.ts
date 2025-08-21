@@ -51,6 +51,61 @@ export interface TimeEntry {
   invoiceId: string | null;
 }
 
+export enum RecurringFrequency {
+  Monthly = 'Monthly',
+  Quarterly = 'Quarterly',
+  Yearly = 'Yearly',
+  BiWeekly = 'BiWeekly',
+  Weekly = 'Weekly',
+}
+
+export enum PaymentStatus {
+  Unpaid = 'Unpaid',
+  PartiallyPaid = 'PartiallyPaid',
+  Paid = 'Paid',
+  Overdue = 'Overdue',
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  amount: number;
+  currency: Currency;
+  paymentDate: string;
+  paymentMethod: string;
+  notes?: string;
+}
+
+export interface RecurringInvoiceTemplate {
+  id: string;
+  clientId: string;
+  templateName: string;
+  frequency: RecurringFrequency;
+  nextGenerationDate: string;
+  lastGeneratedDate?: string;
+  isActive: boolean;
+  hourlyRate: number;
+  currency: Currency;
+  estimatedHours: number;
+  description: string;
+  daysUntilDue: number;
+}
+
+export interface InvoiceReminder {
+  id: string;
+  invoiceId: string;
+  reminderDate: string;
+  reminderType: 'FirstReminder' | 'SecondReminder' | 'FinalNotice';
+  sent: boolean;
+}
+
+export interface ExchangeRate {
+  fromCurrency: Currency;
+  toCurrency: Currency;
+  rate: number;
+  lastUpdated: string;
+}
+
 export interface Invoice {
   id: string;
   clientId: string;
@@ -58,7 +113,14 @@ export interface Invoice {
   issueDate: string;
   dueDate: string;
   status: InvoiceStatus;
+  paymentStatus: PaymentStatus;
   timeEntryIds: string[];
+  totalAmount: number;
+  currency: Currency;
+  paidAmount: number;
+  isRecurring: boolean;
+  recurringTemplateId?: string;
+  notes?: string;
 }
 
 export interface BillerInfo {
