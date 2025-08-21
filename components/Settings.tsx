@@ -69,23 +69,123 @@ const BillerInfoForm = () => {
     );
 };
 
-export default function Settings() {
-    const { clients, projects, timeEntries, invoices, billerInfo } = useAppContext();
-    const [isDriveConnected, setIsDriveConnected] = useState(false);
+const SyncStatusIndicator = () => {
+    const { syncStatus, lastSyncTime } = useAppContext();
+    
+    const getStatusIcon = () => {
+        switch (syncStatus) {
+            case 'syncing':
+                return <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>;
+            case 'success':
+                return <div className="h-4 w-4 bg-green-500 rounded-full"></div>;
+            case 'error':
+                return <div className="h-4 w-4 bg-red-500 rounded-full"></div>;
+            default:
+                return <div className="h-4 w-4 bg-gray-400 rounded-full"></div>;
+        }
+    };
 
-    const handleExport = () => {
-        const data = {
-            clients,
-            projects,
-            timeEntries,
-            invoices,
-            billerInfo,
+    const getStatusText = () => {
+        switch (syncStatus) {
+            case 'syncing':
+                return 'Syncing...';
+            case 'success':
+                return lastSyncTime ? `Last sync: ${new Date(lastSyncTime).toLocaleString()}` : 'Synced';
+            case 'error':
+                return 'Sync failed';
+            default:
+                return 'Ready to sync';
+        }
+    };
+
+    return (
+        <div className="flex items-center space-x-2 text-sm">
+            {getStatusIcon()}
+            <span className="text-slate-600">{getStatusText()}</span>
+        </div>
+    );
+};
+
+export default function Settings() {
+    const { 
+        exportData, 
+        importData, 
+        recoverData, 
+        triggerSync, 
+        syncStatus 
+    } = useAppContext();
+    const [isDriveConnected, setIsDriveConnected] = useState(false);
+    const [importStatus, setImportStatus] = useState<'idle' | 'importing' | 'success' | 'error'>('idle');
+    const [importMessages, setImportMessages] = useState<string[]>([]);
+
+    const handleExport = async () => {
+        try {
+            const exportedData = await exportData();
+            const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(exportedData)}`;
+            const link = document.createElement("a");
+            link.href = jsonString;
+            link.download = `protracker-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+        } catch (error) {
+            console.error('Export failed:', error);
+            alert('Export failed. Please try again.');
+        }
+    };
+
+    const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setImportStatus('importing');
+        setImportMessages([]);
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const content = e.target?.result as string;
+                const result = await importData(content, 'merge'); // Default to merge mode
+                
+                if (result.success) {
+                    setImportStatus('success');
+                    const messages = ['Import completed successfully!'];
+                    if (result.warnings.length > 0) {
+                        messages.push(...result.warnings.map(w => `Warning: ${w}`));
+                    }
+                    setImportMessages(messages);
+                    
+                    // Clear messages after 5 seconds
+                    setTimeout(() => {
+                        setImportStatus('idle');
+                        setImportMessages([]);
+                    }, 5000);
+                } else {
+                    setImportStatus('error');
+                    setImportMessages(result.errors);
+                }
+            } catch (error) {
+                setImportStatus('error');
+                setImportMessages([`Import failed: ${error.message}`]);
+            }
         };
-        const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
-        const link = document.createElement("a");
-        link.href = jsonString;
-        link.download = `protracker-backup-${new Date().toISOString().split('T')[0]}.json`;
-        link.click();
+        reader.readAsText(file);
+        
+        // Reset file input
+        event.target.value = '';
+    };
+
+    const handleRecover = async () => {
+        if (confirm('This will attempt to recover your data from the last backup. Continue?')) {
+            const success = await recoverData();
+            if (success) {
+                alert('Data recovery completed successfully!');
+            } else {
+                alert('Data recovery failed. No backup data found.');
+            }
+        }
+    };
+
+    const handleManualSync = async () => {
+        await triggerSync();
     };
 
 
@@ -106,13 +206,78 @@ export default function Settings() {
 
                 <Card>
                     <CardHeader>
-                        <CardTitle>Data Management</CardTitle>
+                        <div className="flex items-center justify-between">
+                            <CardTitle>Data Management & Sync</CardTitle>
+                            <SyncStatusIndicator />
+                        </div>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-slate-500 mb-4">Export all your data to a single JSON file. You can import this file later to restore your data.</p>
-                        <div className="flex space-x-4">
-                            <Button variant="secondary" onClick={handleExport}>Export Data (JSON)</Button>
-                             <Button variant="secondary" onClick={() => alert('Import functionality coming soon!')}>Import Data (JSON)</Button>
+                    <CardContent className="space-y-6">
+                        {/* Sync Section */}
+                        <div>
+                            <h4 className="font-semibold text-slate-800 mb-2">Auto-Sync & Backup</h4>
+                            <p className="text-slate-500 mb-3">Your data is automatically synced and backed up every 5 minutes.</p>
+                            <div className="flex space-x-3">
+                                <Button 
+                                    variant="secondary" 
+                                    onClick={handleManualSync}
+                                    disabled={syncStatus === 'syncing'}
+                                >
+                                    {syncStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}
+                                </Button>
+                                <Button variant="secondary" onClick={handleRecover}>
+                                    Recover from Backup
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Import/Export Section */}
+                        <div className="border-t pt-6">
+                            <h4 className="font-semibold text-slate-800 mb-2">Import/Export Data</h4>
+                            <p className="text-slate-500 mb-4">
+                                Export your data to a secure JSON file or import data from a backup. 
+                                Import will merge new data with existing data by default.
+                            </p>
+                            
+                            <div className="flex flex-wrap gap-3">
+                                <Button variant="secondary" onClick={handleExport}>
+                                    Export Data (JSON)
+                                </Button>
+                                
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        accept=".json"
+                                        onChange={handleImport}
+                                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        disabled={importStatus === 'importing'}
+                                    />
+                                    <Button 
+                                        variant="secondary" 
+                                        disabled={importStatus === 'importing'}
+                                    >
+                                        {importStatus === 'importing' ? 'Importing...' : 'Import Data (JSON)'}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Import Status Messages */}
+                            {importMessages.length > 0 && (
+                                <div className={`mt-4 p-3 rounded-lg ${
+                                    importStatus === 'success' ? 'bg-green-50 border border-green-200' :
+                                    importStatus === 'error' ? 'bg-red-50 border border-red-200' : 
+                                    'bg-blue-50 border border-blue-200'
+                                }`}>
+                                    <ul className={`text-sm ${
+                                        importStatus === 'success' ? 'text-green-800' :
+                                        importStatus === 'error' ? 'text-red-800' :
+                                        'text-blue-800'
+                                    }`}>
+                                        {importMessages.map((message, index) => (
+                                            <li key={index} className="mb-1">{message}</li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                     </CardContent>
                 </Card>

@@ -1,13 +1,15 @@
 
-import React, { useState, createContext, useContext, ReactNode } from 'react';
+import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
 import type { View, Client, Project, TimeEntry, Invoice, BillerInfo } from './types';
 import { ProjectStatus, InvoiceStatus } from './types';
+import { dataManager, type AppData } from './utils/dataManager';
 import Dashboard from './components/Dashboard';
 import ClientsProjects from './components/ClientsProjects';
 import TimeEntries from './components/TimeEntries';
 import Invoicing from './components/Invoicing';
 import AIAssistant from './components/AIAssistant';
 import Settings from './components/Settings';
+import SyncNotification from './components/SyncNotification';
 
 // --- HELPERS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -81,6 +83,8 @@ interface AppContextType {
     timeEntries: TimeEntry[];
     invoices: Invoice[];
     billerInfo: BillerInfo;
+    syncStatus: 'idle' | 'syncing' | 'error' | 'success';
+    lastSyncTime: number | null;
     addClient: (client: Omit<Client, 'id'>) => void;
     updateClient: (client: Client) => void;
     deleteClient: (clientId: string) => void;
@@ -92,6 +96,10 @@ interface AppContextType {
     createInvoice: (invoiceData: Omit<Invoice, 'id' | 'invoiceNumber'>) => void;
     updateInvoice: (invoice: Invoice) => void;
     updateBillerInfo: (info: BillerInfo) => void;
+    exportData: () => Promise<string>;
+    importData: (jsonString: string, mergeMode?: 'replace' | 'merge') => Promise<{success: boolean; errors: string[]; warnings: string[]}>;
+    recoverData: () => Promise<boolean>;
+    triggerSync: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -112,6 +120,8 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const [timeEntries, setTimeEntries] = useLocalStorage<TimeEntry[]>('timeEntries', initialTimeEntries);
     const [invoices, setInvoices] = useLocalStorage<Invoice[]>('invoices', initialInvoices);
     const [billerInfo, setBillerInfo] = useLocalStorage<BillerInfo>('billerInfo', initialBillerInfo);
+    const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
+    const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
 
     const addClient = (client: Omit<Client, 'id'>) => setClients(prev => [...prev, { ...client, id: generateId() }]);
     const updateClient = (updatedClient: Client) => setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
@@ -141,14 +151,125 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const updateBillerInfo = (info: BillerInfo) => setBillerInfo(info);
 
+    // Enhanced data management methods
+    const exportData = async (): Promise<string> => {
+        const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo);
+        return await dataManager.exportData(snapshot);
+    };
+
+    const importData = async (jsonString: string, mergeMode: 'replace' | 'merge' = 'merge') => {
+        const result = await dataManager.importData(jsonString, mergeMode);
+        
+        if (result.success && result.data) {
+            if (mergeMode === 'replace') {
+                setClients(result.data.clients);
+                setProjects(result.data.projects);
+                setTimeEntries(result.data.timeEntries);
+                setInvoices(result.data.invoices);
+                setBillerInfo(result.data.billerInfo);
+            } else {
+                // Merge mode - combine data intelligently
+                setClients(prev => {
+                    const existingIds = new Set(prev.map(c => c.id));
+                    const newClients = result.data!.clients.filter(c => !existingIds.has(c.id));
+                    return [...prev, ...newClients];
+                });
+                
+                setProjects(prev => {
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const newProjects = result.data!.projects.filter(p => !existingIds.has(p.id));
+                    return [...prev, ...newProjects];
+                });
+                
+                setTimeEntries(prev => {
+                    const existingIds = new Set(prev.map(t => t.id));
+                    const newEntries = result.data!.timeEntries.filter(t => !existingIds.has(t.id));
+                    return [...prev, ...newEntries].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+                });
+                
+                setInvoices(prev => {
+                    const existingIds = new Set(prev.map(i => i.id));
+                    const newInvoices = result.data!.invoices.filter(i => !existingIds.has(i.id));
+                    return [...prev, ...newInvoices];
+                });
+            }
+        }
+        
+        return result;
+    };
+
+    const recoverData = async (): Promise<boolean> => {
+        setSyncStatus('syncing');
+        try {
+            const recoveredData = await dataManager.recoverData();
+            if (recoveredData) {
+                setClients(recoveredData.clients);
+                setProjects(recoveredData.projects);
+                setTimeEntries(recoveredData.timeEntries);
+                setInvoices(recoveredData.invoices);
+                setBillerInfo(recoveredData.billerInfo);
+                setSyncStatus('success');
+                setLastSyncTime(Date.now());
+                return true;
+            }
+            setSyncStatus('error');
+            return false;
+        } catch (error) {
+            console.error('Data recovery failed:', error);
+            setSyncStatus('error');
+            return false;
+        }
+    };
+
+    const triggerSync = async (): Promise<void> => {
+        setSyncStatus('syncing');
+        try {
+            const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo);
+            const syncedData = await dataManager.syncData(snapshot);
+            
+            // Update state if synced data is different
+            if (syncedData.lastModified !== snapshot.lastModified) {
+                setClients(syncedData.clients);
+                setProjects(syncedData.projects);
+                setTimeEntries(syncedData.timeEntries);
+                setInvoices(syncedData.invoices);
+                setBillerInfo(syncedData.billerInfo);
+            }
+            
+            setSyncStatus('success');
+            setLastSyncTime(Date.now());
+        } catch (error) {
+            console.error('Sync failed:', error);
+            setSyncStatus('error');
+        }
+    };
+
+    // Auto-sync on data changes
+    useEffect(() => {
+        const autoSync = async () => {
+            if (syncStatus !== 'syncing') {
+                await triggerSync();
+            }
+        };
+
+        const debounceTimer = setTimeout(autoSync, 2000); // Debounce for 2 seconds
+        return () => clearTimeout(debounceTimer);
+    }, [clients, projects, timeEntries, invoices, billerInfo]);
+
+    // Initial sync on app load
+    useEffect(() => {
+        triggerSync();
+    }, []);
 
     const value = {
         clients, projects, timeEntries, invoices, billerInfo,
+        syncStatus, lastSyncTime,
         addClient, updateClient, deleteClient,
         addProject, updateProject,
         addTimeEntry, updateTimeEntry, deleteTimeEntry,
         createInvoice, updateInvoice,
         updateBillerInfo,
+        exportData, importData, recoverData, triggerSync,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -226,6 +347,7 @@ export default function App() {
                 <main className="flex-1 overflow-y-auto p-8">
                     {renderView()}
                 </main>
+                <SyncNotification />
             </div>
         </AppProvider>
     );
