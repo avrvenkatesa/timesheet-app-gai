@@ -9,11 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "latest",
+    "@tailwindcss/typography": "^0.5.16",
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "autoprefixer": "^10.4.21",
+    "html2canvas": "1.4.1",
+    "jspdf": "2.5.1",
+    "postcss": "^8.5.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "@google/genai": "latest",
-    "jspdf": "2.5.1",
-    "html2canvas": "1.4.1"
+    "tailwindcss": "^4.1.12"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
