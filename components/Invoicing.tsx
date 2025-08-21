@@ -454,20 +454,9 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
     const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
 
     const total = useMemo(() => {
-        if (invoice.timeEntryIds.length === 0) {
-            return formatCurrency(invoice.totalAmount, invoice.currency);
-        }
-
-        const totals: { [key: string]: number } = {};
-        invoiceEntries.forEach(entry => {
-            const project = projects.find(p => p.id === entry.projectId);
-            if(project) {
-                const amount = entry.hours * project.hourlyRate;
-                totals[project.currency] = (totals[project.currency] || 0) + amount;
-            }
-        });
-        return Object.entries(totals).map(([curr, amt]) => formatCurrency(amt, curr)).join(' + ');
-    }, [invoiceEntries, projects, invoice]);
+        // Always use the stored total amount from the invoice
+        return formatCurrency(invoice.totalAmount, invoice.currency);
+    }, [invoice.totalAmount, invoice.currency]);
 
     const handleSaveAsPdf = async () => {
         const invoiceContent = document.getElementById('invoice-content-for-print');
@@ -713,6 +702,21 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             return;
         }
 
+        // Calculate total amount for time-based invoices
+        let calculatedTotal = 0;
+        let invoiceCurrency: Currency = 'USD' as Currency;
+
+        if (!isManualInvoice && selectedEntryIds.length > 0) {
+            selectedEntryIds.forEach(id => {
+                const entry = unbilledEntries.find(e => e.id === id);
+                const project = entry ? projects.find(p => p.id === entry.projectId) : null;
+                if (entry && project) {
+                    calculatedTotal += entry.hours * project.hourlyRate;
+                    invoiceCurrency = project.currency; // Use the first project's currency
+                }
+            });
+        }
+
         onSave({
             clientId: selectedClientId,
             issueDate,
@@ -720,8 +724,8 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             status: InvoiceStatus.Draft,
             paymentStatus: PaymentStatus.Unpaid,
             timeEntryIds: isManualInvoice ? [] : selectedEntryIds,
-            totalAmount: isManualInvoice ? parseFloat(manualAmount) : 0,
-            currency: isManualInvoice ? manualCurrency : ('USD' as Currency),
+            totalAmount: isManualInvoice ? parseFloat(manualAmount) : calculatedTotal,
+            currency: isManualInvoice ? manualCurrency : invoiceCurrency,
             paidAmount: 0,
             isRecurring: false,
             notes: isManualInvoice ? description : undefined
