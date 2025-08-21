@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { useAppContext } from '../App';
-import type { Client, Project } from '../types';
+import type { Client, Project, ProjectTemplate, ClientNote, ProjectMilestone } from '../types';
 import { ProjectStatus, Currency } from '../types';
 import { Button, Modal, Input, Textarea, Label, Card, CardHeader, CardTitle, CardContent, Select } from './ui/index';
 
@@ -10,6 +10,8 @@ const PlusIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-
 const ArchiveIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>;
 const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>;
 const ChevronDownIcon = ({ className }: { className?: string }) => <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 transition-transform ${className || ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" /></svg>;
+const TemplateIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>;
+const NotesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>;
 
 
 // --- Client/Project Form ---
@@ -178,11 +180,258 @@ const ClientAccordionItem = ({ client }: { client: Client }) => {
     );
 };
 
+// --- Project Templates Management ---
+const ProjectTemplatesSection = () => {
+    const { projectTemplates, addProjectTemplate, deleteProjectTemplate } = useAppContext();
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [formData, setFormData] = useState<Partial<ProjectTemplate>>({
+        name: '',
+        description: '',
+        defaultHourlyRate: 0,
+        defaultCurrency: Currency.USD,
+        category: '',
+        tags: [],
+        tasks: []
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        addProjectTemplate(formData as Omit<ProjectTemplate, 'id'>);
+        setIsModalOpen(false);
+        setFormData({ name: '', description: '', defaultHourlyRate: 0, defaultCurrency: Currency.USD, category: '', tags: [], tasks: [] });
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ 
+            ...prev, 
+            [name]: name === 'defaultHourlyRate' ? parseFloat(value) || 0 : value 
+        }));
+    };
+
+    return (
+        <Card className="mb-6">
+            <CardHeader>
+                <div className="flex justify-between items-center">
+                    <CardTitle>Project Templates</CardTitle>
+                    <Button onClick={() => setIsModalOpen(true)} size="sm">
+                        <PlusIcon /> Add Template
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {projectTemplates.length === 0 ? (
+                    <p className="text-slate-500 text-center py-4">No project templates created yet.</p>
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {projectTemplates.map(template => (
+                            <div key={template.id} className="border border-slate-200 rounded-lg p-4">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h4 className="font-semibold text-slate-800">{template.name}</h4>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => deleteProjectTemplate(template.id)}
+                                    >
+                                        <TrashIcon />
+                                    </Button>
+                                </div>
+                                <p className="text-sm text-slate-600 mb-2">{template.description}</p>
+                                <div className="flex justify-between text-sm text-slate-500">
+                                    <span>{template.defaultCurrency} {template.defaultHourlyRate}/hr</span>
+                                    <span>{template.category}</span>
+                                </div>
+                                {template.tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 mt-2">
+                                        {template.tags.map(tag => (
+                                            <span key={tag} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                                {tag}
+                                            </span>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Create Project Template">
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <Label htmlFor="name">Template Name</Label>
+                            <Input
+                                id="name"
+                                name="name"
+                                value={formData.name || ''}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="description">Description</Label>
+                            <Textarea
+                                id="description"
+                                name="description"
+                                value={formData.description || ''}
+                                onChange={handleChange}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <Label htmlFor="defaultHourlyRate">Default Hourly Rate</Label>
+                                <Input
+                                    id="defaultHourlyRate"
+                                    name="defaultHourlyRate"
+                                    type="number"
+                                    step="0.01"
+                                    value={formData.defaultHourlyRate || ''}
+                                    onChange={handleChange}
+                                    required
+                                />
+                            </div>
+                            <div>
+                                <Label htmlFor="defaultCurrency">Currency</Label>
+                                <Select
+                                    id="defaultCurrency"
+                                    name="defaultCurrency"
+                                    value={formData.defaultCurrency || ''}
+                                    onChange={handleChange}
+                                    required
+                                >
+                                    {Object.values(Currency).map(curr => (
+                                        <option key={curr} value={curr}>{curr}</option>
+                                    ))}
+                                </Select>
+                            </div>
+                        </div>
+                        <div>
+                            <Label htmlFor="category">Category</Label>
+                            <Input
+                                id="category"
+                                name="category"
+                                value={formData.category || ''}
+                                onChange={handleChange}
+                                placeholder="e.g., Web Development, Design, Marketing"
+                            />
+                        </div>
+                        <div className="flex justify-end space-x-2">
+                            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
+                                Cancel
+                            </Button>
+                            <Button type="submit">Create Template</Button>
+                        </div>
+                    </form>
+                </Modal>
+            </CardContent>
+        </Card>
+    );
+};
+
+// --- Client Notes Management ---
+const ClientNotesModal = ({ client, isOpen, onClose }: { client: Client; isOpen: boolean; onClose: () => void }) => {
+    const { clientNotes, addClientNote } = useAppContext();
+    const [formData, setFormData] = useState({
+        type: 'note' as 'call' | 'email' | 'meeting' | 'note',
+        subject: '',
+        content: ''
+    });
+
+    const clientNotesList = clientNotes.filter(note => note.clientId === client.id);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        addClientNote({
+            clientId: client.id,
+            date: new Date().toISOString().split('T')[0],
+            ...formData,
+            createdBy: 'User'
+        });
+        setFormData({ type: 'note', subject: '', content: '' });
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Notes for ${client.name}`}>
+            <div className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-4 border-b border-slate-200 pb-4">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="type">Type</Label>
+                            <Select id="type" name="type" value={formData.type} onChange={handleChange}>
+                                <option value="note">Note</option>
+                                <option value="call">Call</option>
+                                <option value="email">Email</option>
+                                <option value="meeting">Meeting</option>
+                            </Select>
+                        </div>
+                        <div>
+                            <Label htmlFor="subject">Subject</Label>
+                            <Input
+                                id="subject"
+                                name="subject"
+                                value={formData.subject}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <Label htmlFor="content">Content</Label>
+                        <Textarea
+                            id="content"
+                            name="content"
+                            value={formData.content}
+                            onChange={handleChange}
+                            rows={3}
+                            required
+                        />
+                    </div>
+                    <Button type="submit" size="sm">Add Note</Button>
+                </form>
+
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {clientNotesList.length === 0 ? (
+                        <p className="text-slate-500 text-center py-4">No notes for this client yet.</p>
+                    ) : (
+                        clientNotesList
+                            .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                            .map(note => (
+                                <div key={note.id} className="border border-slate-200 rounded-lg p-3">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="flex items-center space-x-2">
+                                            <span className={`px-2 py-1 text-xs rounded ${
+                                                note.type === 'call' ? 'bg-green-100 text-green-800' :
+                                                note.type === 'email' ? 'bg-blue-100 text-blue-800' :
+                                                note.type === 'meeting' ? 'bg-purple-100 text-purple-800' :
+                                                'bg-slate-100 text-slate-800'
+                                            }`}>
+                                                {note.type}
+                                            </span>
+                                            <span className="font-medium">{note.subject}</span>
+                                        </div>
+                                        <span className="text-xs text-slate-500">{new Date(note.date).toLocaleDateString()}</span>
+                                    </div>
+                                    <p className="text-sm text-slate-600">{note.content}</p>
+                                </div>
+                            ))
+                    )}
+                </div>
+            </div>
+        </Modal>
+    );
+};
+
 // --- MAIN COMPONENT ---
 export default function ClientsProjects() {
-    const { clients, addClient, updateClient } = useAppContext();
+    const { clients, addClient, updateClient, projectTemplates } = useAppContext();
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalInitialState, setModalInitialState] = useState<FormState>({});
+    const [notesModalClient, setNotesModalClient] = useState<Client | null>(null);
+    const [activeTab, setActiveTab] = useState<'clients' | 'templates'>('clients');
 
     const handleOpenModal = (type: 'client', data?: Client) => {
         setModalInitialState(data ? { ...data, formType: 'client' } : { formType: 'client' });
@@ -201,23 +450,74 @@ export default function ClientsProjects() {
         setIsModalOpen(false);
     };
 
+    const tabButtonClass = (tab: string) => 
+        `px-4 py-2 font-medium rounded-lg transition-colors ${
+            activeTab === tab 
+                ? 'bg-blue-600 text-white' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+        }`;
+
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
                 <h1 className="text-3xl font-bold text-slate-800">Clients & Projects</h1>
-                <Button onClick={() => handleOpenModal('client')}>
-                    <PlusIcon /> Add Client
-                </Button>
+                <div className="mt-3 sm:mt-0 flex space-x-2">
+                    <Button onClick={() => handleOpenModal('client')}>
+                        <PlusIcon /> Add Client
+                    </Button>
+                </div>
             </div>
-            <div className="space-y-4">
-                {clients.map(client => (
-                    <ClientAccordionItem key={client.id} client={client} />
-                ))}
+
+            <div className="flex space-x-1 bg-slate-100 p-1 rounded-lg mb-6">
+                <button onClick={() => setActiveTab('clients')} className={tabButtonClass('clients')}>
+                    Clients & Projects
+                </button>
+                <button onClick={() => setActiveTab('templates')} className={tabButtonClass('templates')}>
+                    <TemplateIcon /> Templates ({projectTemplates.length})
+                </button>
             </div>
+
+            {activeTab === 'clients' && (
+                <div className="space-y-4">
+                    {clients.map(client => (
+                        <Card key={client.id}>
+                            <CardHeader className="flex justify-between items-center cursor-pointer">
+                                <div>
+                                    <CardTitle>{client.name}</CardTitle>
+                                    <p className="text-sm text-slate-500">{client.contactEmail}</p>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Button 
+                                        variant="secondary" 
+                                        size="sm" 
+                                        onClick={(e) => { 
+                                            e.stopPropagation(); 
+                                            setNotesModalClient(client); 
+                                        }}
+                                    >
+                                        <NotesIcon /> Notes
+                                    </Button>
+                                    <ClientAccordionItem client={client} />
+                                </div>
+                            </CardHeader>
+                        </Card>
+                    ))}
+                </div>
+            )}
+
+            {activeTab === 'templates' && <ProjectTemplatesSection />}
 
             <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalInitialState.id ? 'Edit Client' : 'Add New Client'}>
                 <ClientProjectForm initialState={modalInitialState} onSave={handleSave} onCancel={() => setIsModalOpen(false)} />
             </Modal>
+
+            {notesModalClient && (
+                <ClientNotesModal
+                    client={notesModalClient}
+                    isOpen={!!notesModalClient}
+                    onClose={() => setNotesModalClient(null)}
+                />
+            )}
         </div>
     );
 }

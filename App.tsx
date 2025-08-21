@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
-import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate } from './types';
+import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate, ProjectTemplate, ClientNote, ProjectMilestone } from './types';
 import { ProjectStatus, InvoiceStatus, Currency } from './types';
 import { dataManager, type AppData } from './utils/dataManager';
 import Dashboard from './components/Dashboard';
@@ -8,6 +8,7 @@ import TimeEntries from './components/TimeEntries';
 import Invoicing from './components/Invoicing';
 import AIAssistant from './components/AIAssistant';
 import Settings from './components/Settings';
+import Reports from './components/Reports';
 import SyncNotification from './components/SyncNotification';
 import { ToastProvider } from './components/ui/Toast';
 
@@ -120,6 +121,25 @@ interface AppContextType {
     recoverData: () => Promise<boolean>;
     triggerSync: () => Promise<void>;
     syncData: (snapshot: AppData) => Promise<AppData>;
+
+    // Enhanced Project and Client Management
+    projectTemplates: ProjectTemplate[];
+    addProjectTemplate: (template: Omit<ProjectTemplate, 'id'>) => void;
+    updateProjectTemplate: (template: ProjectTemplate) => void;
+    deleteProjectTemplate: (templateId: string) => void;
+    clientNotes: ClientNote[];
+    addClientNote: (note: Omit<ClientNote, 'id'>) => void;
+    updateClientNote: (note: ClientNote) => void;
+    deleteClientNote: (noteId: string) => void;
+    projectMilestones: ProjectMilestone[];
+    addProjectMilestone: (milestone: Omit<ProjectMilestone, 'id'>) => void;
+    updateProjectMilestone: (milestone: ProjectMilestone) => void;
+    deleteProjectMilestone: (milestoneId: string) => void;
+
+    // Advanced Reporting and Analytics
+    getProjectAnalytics: (projectId: string) => any; // Placeholder for analytics data
+    generateTimeReport: (projectId?: string) => TimeEntry[]; // Placeholder for report generation
+    generateRevenueReport: (clientId?: string) => Invoice[]; // Placeholder for report generation
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -144,6 +164,12 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const [invoiceReminders, setInvoiceReminders] = useLocalStorage<InvoiceReminder[]>('invoiceReminders', []);
     const [exchangeRates, setExchangeRates] = useLocalStorage<ExchangeRate[]>('exchangeRates', []);
     const [billerInfo, setBillerInfo] = useLocalStorage<BillerInfo>('billerInfo', initialBillerInfo);
+
+    // New state for enhanced features
+    const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([]);
+    const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
+    const [projectMilestones, setProjectMilestones] = useState<ProjectMilestone[]>([]);
+
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
     const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
 
@@ -226,6 +252,54 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const updateBillerInfo = (info: BillerInfo) => setBillerInfo(info);
 
+    // Enhanced Project and Client Management Methods
+    const addProjectTemplate = (template: Omit<ProjectTemplate, 'id'>) => setProjectTemplates(prev => [...prev, { ...template, id: generateId() }]);
+    const updateProjectTemplate = (updatedTemplate: ProjectTemplate) => setProjectTemplates(prev => prev.map(t => t.id === updatedTemplate.id ? updatedTemplate : t));
+    const deleteProjectTemplate = (templateId: string) => setProjectTemplates(prev => prev.filter(t => t.id !== templateId));
+
+    const addClientNote = (note: Omit<ClientNote, 'id'>) => setClientNotes(prev => [...prev, { ...note, id: generateId() }]);
+    const updateClientNote = (updatedNote: ClientNote) => setClientNotes(prev => prev.map(n => n.id === updatedNote.id ? updatedNote : n));
+    const deleteClientNote = (noteId: string) => setClientNotes(prev => prev.filter(n => n.id !== noteId));
+
+    const addProjectMilestone = (milestone: Omit<ProjectMilestone, 'id'>) => setProjectMilestones(prev => [...prev, { ...milestone, id: generateId() }]);
+    const updateProjectMilestone = (updatedMilestone: ProjectMilestone) => setProjectMilestones(prev => prev.map(m => m.id === updatedMilestone.id ? updatedMilestone : m));
+    const deleteProjectMilestone = (milestoneId: string) => setProjectMilestones(prev => prev.filter(m => m.id !== milestoneId));
+
+    // Advanced Reporting and Analytics Methods
+    const getProjectAnalytics = (projectId: string) => {
+        const project = projects.find(p => p.id === projectId);
+        if (!project) return null;
+        const projectTimeEntries = timeEntries.filter(entry => entry.projectId === projectId && entry.isBillable);
+        const totalHours = projectTimeEntries.reduce((sum, entry) => sum + entry.hours, 0);
+        const totalRevenue = projectTimeEntries.reduce((sum, entry) => sum + (entry.hours * project.hourlyRate), 0);
+        return {
+            ...project,
+            totalHours,
+            totalRevenue: convertCurrency(totalRevenue, project.currency, Currency.USD), // Example conversion
+            numberOfTimeEntries: projectTimeEntries.length,
+        };
+    };
+
+    const generateTimeReport = (projectId?: string): TimeEntry[] => {
+        if (projectId) {
+            return timeEntries.filter(entry => entry.projectId === projectId);
+        }
+        return timeEntries; // Return all time entries if no project is specified
+    };
+
+    const generateRevenueReport = (clientId?: string): Invoice[] => {
+        if (clientId) {
+            const clientProjects = projects.filter(p => p.clientId === clientId);
+            const invoiceIdsForClient = timeEntries
+                .filter(entry => clientProjects.some(p => p.id === entry.projectId) && entry.invoiceId)
+                .map(entry => entry.invoiceId!)
+                .filter((value, index, self) => self.indexOf(value) === index); // Unique invoice IDs
+            return invoices.filter(invoice => invoiceIdsForClient.includes(invoice.id));
+        }
+        return invoices; // Return all invoices if no client is specified
+    };
+
+
     // Enhanced data management methods
     const exportData = async (): Promise<string> => {
         const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates);
@@ -246,6 +320,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setRecurringTemplates(result.data.recurringTemplates || []);
                 setInvoiceReminders(result.data.invoiceReminders || []);
                 setExchangeRates(result.data.exchangeRates || []);
+                // Handle new data types
+                setProjectTemplates(result.data.projectTemplates || []);
+                setClientNotes(result.data.clientNotes || []);
+                setProjectMilestones(result.data.projectMilestones || []);
             } else {
                 // Merge mode - combine data intelligently
                 setClients(prev => {
@@ -284,6 +362,23 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                     return [...prev, ...newTemplates];
                 });
                 // Invoice reminders and exchange rates could also be merged similarly
+
+                // Merge new data types
+                setProjectTemplates(prev => {
+                    const existingIds = new Set(prev.map(t => t.id));
+                    const newTemplates = result.data!.projectTemplates.filter(t => !existingIds.has(t.id));
+                    return [...prev, ...newTemplates];
+                });
+                setClientNotes(prev => {
+                    const existingIds = new Set(prev.map(n => n.id));
+                    const newNotes = result.data!.clientNotes.filter(n => !existingIds.has(n.id));
+                    return [...prev, ...newNotes];
+                });
+                setProjectMilestones(prev => {
+                    const existingIds = new Set(prev.map(m => m.id));
+                    const newMilestones = result.data!.projectMilestones.filter(m => !existingIds.has(m.id));
+                    return [...prev, ...newMilestones];
+                });
             }
         }
 
@@ -304,6 +399,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setRecurringTemplates(recoveredData.recurringTemplates || []);
                 setInvoiceReminders(recoveredData.invoiceReminders || []);
                 setExchangeRates(recoveredData.exchangeRates || []);
+                // Recover new data types
+                setProjectTemplates(recoveredData.projectTemplates || []);
+                setClientNotes(recoveredData.clientNotes || []);
+                setProjectMilestones(recoveredData.projectMilestones || []);
                 setSyncStatus('success');
                 setLastSyncTime(Date.now());
                 return true;
@@ -334,6 +433,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setRecurringTemplates(syncedData.recurringTemplates || []);
                 setInvoiceReminders(syncedData.invoiceReminders || []);
                 setExchangeRates(syncedData.exchangeRates || []);
+                // Update state for new data types
+                setProjectTemplates(syncedData.projectTemplates || []);
+                setClientNotes(syncedData.clientNotes || []);
+                setProjectMilestones(syncedData.projectMilestones || []);
             }
 
             setSyncStatus('success');
@@ -382,6 +485,21 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         generateRecurringInvoices, updateExchangeRate, convertCurrency,
         updateBillerInfo,
         exportData, importData, recoverData, triggerSync, syncData,
+        projectTemplates,
+        addProjectTemplate,
+        updateProjectTemplate,
+        deleteProjectTemplate,
+        clientNotes,
+        addClientNote,
+        updateClientNote,
+        deleteClientNote,
+        projectMilestones,
+        addProjectMilestone,
+        updateProjectMilestone,
+        deleteProjectMilestone,
+        getProjectAnalytics,
+        generateTimeReport,
+        generateRevenueReport,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -392,7 +510,7 @@ const TimeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-
 const FolderIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>;
 const InvoiceIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
 const DashboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>;
-const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0118.49 9.51l1.106.276a1 1 0 01.894 1.447l.276 1.106a1 1 0 010 1.788l-1.106.276a1 1 0 01-.49 1.491l1.106.276a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49.49l-.276 1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.491.49l-.276-1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
+const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0118.49 9.51l1.106.276a1 1 0 01.894 1.447l.276 1.106a1 1 0 010 1.788l-1.106.276a1 1 0 01-.49 1.491l1.106.276a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49.49l-.276 1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49-.49l-.276-1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
 const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 
 
@@ -452,6 +570,8 @@ export default function App() {
                 return <Invoicing />;
             case 'ai-assistant':
                 return <AIAssistant />;
+            case 'reports':
+                return <Reports />;
             case 'settings':
                 return <Settings />;
             default:
@@ -528,6 +648,7 @@ export default function App() {
                                     )}
                                     <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
                                 </button>
+                                <NavLink activeView={view} targetView="reports" setView={setView} icon={<DashboardIcon />}>Reports</NavLink> {/* Placeholder Icon */}
                                 <NavLink activeView={view} targetView="settings" setView={setView} icon={<SettingsIcon />}>Settings</NavLink>
                             </div>
                         </nav>

@@ -37,6 +37,15 @@ export interface Project {
   hourlyRate: number;
   currency: Currency;
   status: ProjectStatus;
+  category?: string;
+  tags?: string[];
+  startDate?: string;
+  endDate?: string;
+  estimatedHours?: number;
+  budget?: number;
+  tasks?: ProjectTask[];
+  milestones?: ProjectMilestone[];
+  templateId?: string;
 }
 
 export interface TimeEntry {
@@ -137,4 +146,72 @@ export interface BillerInfo {
   ifscCode: string;
 }
 
-export type View = 'dashboard' | 'clients-projects' | 'time-entries' | 'invoicing' | 'ai-assistant' | 'settings';
+export interface ProjectTemplate {
+  id: string;
+  name: string;
+  description: string;
+  defaultHourlyRate: number;
+  defaultCurrency: Currency;
+  category: string;
+  tags: string[];
+  tasks: ProjectTask[];
+}
+
+export interface ProjectTask {
+  id: string;
+  name: string;
+  description: string;
+  estimatedHours: number;
+  isCompleted: boolean;
+  dueDate?: string;
+}
+
+export interface ProjectMilestone {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  dueDate: string;
+  isCompleted: boolean;
+  completedDate?: string;
+}
+
+export interface ClientNote {
+  id: string;
+  clientId: string;
+  date: string;
+  type: 'call' | 'email' | 'meeting' | 'note';
+  subject: string;
+  content: string;
+  createdBy: string;
+}
+
+export interface ProjectAnalytics {
+  projectId: string;
+  totalHours: number;
+  billableHours: number;
+  totalRevenue: number;
+  profitMargin: number;
+  averageHourlyRate: number;
+  completionPercentage: number;
+}
+
+export interface TimeReport {
+  period: string;
+  totalHours: number;
+  billableHours: number;
+  byProject: { [projectId: string]: number };
+  byClient: { [clientId: string]: number };
+  byDate: { [date: string]: number };
+}
+
+export interface RevenueReport {
+  period: string;
+  totalRevenue: number;
+  byCurrency: { [currency: string]: number };
+  byProject: { [projectId: string]: number };
+  byClient: { [clientId: string]: number };
+  trend: { date: string; amount: number }[];
+}
+
+export type View = 'dashboard' | 'clients-projects' | 'time-entries' | 'invoicing' | 'ai-assistant' | 'settings' | 'reports';

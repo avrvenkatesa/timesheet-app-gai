@@ -58,11 +58,43 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
     const now = new Date();
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
     const endOfWeek = new Date(now.setDate(now.getDate() - now.getDay() + 6));
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
     const thisWeekEntries = timeEntries.filter(e => {
         const entryDate = new Date(e.date);
         return entryDate >= startOfWeek && entryDate <= endOfWeek;
     });
+
+    const thisMonthEntries = timeEntries.filter(e => {
+        const entryDate = new Date(e.date);
+        return entryDate >= startOfMonth;
+    });
+
+    const getProjectCompletionRate = () => {
+        const projectsWithTasks = projects.filter(p => p.tasks && p.tasks.length > 0);
+        if (projectsWithTasks.length === 0) return 0;
+        
+        const totalTasks = projectsWithTasks.reduce((sum, p) => sum + (p.tasks?.length || 0), 0);
+        const completedTasks = projectsWithTasks.reduce((sum, p) => 
+            sum + (p.tasks?.filter(t => t.isCompleted).length || 0), 0
+        );
+        
+        return totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+    };
+
+    const getMonthlyRevenue = () => {
+        const billableEntries = thisMonthEntries.filter(e => e.isBillable);
+        let totalRevenue = 0;
+        
+        billableEntries.forEach(entry => {
+            const project = projects.find(p => p.id === entry.projectId);
+            if (project) {
+                totalRevenue += entry.hours * project.hourlyRate;
+            }
+        });
+        
+        return totalRevenue;
+    };
 
     return (
         <div className="space-y-6">
@@ -73,11 +105,12 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
                 </div>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
                 <StatCard title="Hours Logged (Week)" value={getTotalHours(thisWeekEntries)} unit="hrs" />
                 <StatCard title="Billable Hours (Week)" value={getBillableHours(thisWeekEntries)} unit="hrs" />
+                <StatCard title="Monthly Revenue" value={`$${getMonthlyRevenue().toFixed(0)}`} unit="" />
                 <StatCard title="Total Unbilled" value={getUnbilledAmount() || '$0.00'} unit="" />
-                <StatCard title="Active Projects" value={projects.filter(p => p.status === 'Active').length} unit="projects" />
+                <StatCard title="Project Completion" value={`${getProjectCompletionRate().toFixed(1)}%`} unit="" />
             </div>
 
             <div className="mt-10">
