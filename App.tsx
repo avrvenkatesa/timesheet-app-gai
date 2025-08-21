@@ -9,6 +9,7 @@ import Invoicing from './components/Invoicing';
 import AIAssistant from './components/AIAssistant';
 import Settings from './components/Settings';
 import SyncNotification from './components/SyncNotification';
+import { ToastProvider } from './components/ui/Toast';
 
 // --- HELPERS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -392,12 +393,19 @@ const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-
 // --- NAVLINK COMPONENT ---
 const NavLink = ({ activeView, targetView, setView, children, icon }: { activeView: View, targetView: View, setView: React.Dispatch<React.SetStateAction<View>>, children: ReactNode, icon: ReactNode }) => {
     const isActive = activeView === targetView;
+    const { darkMode } = useTheme();
+    
     return (
         <button
             onClick={() => setView(targetView)}
             className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition-colors w-full text-left ${
-                isActive ? 'bg-primary-500 text-white' : 'text-slate-700 hover:bg-primary-100 hover:text-primary-700'
+                isActive 
+                    ? 'bg-primary-500 text-white shadow-md' 
+                    : darkMode 
+                        ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
+                        : 'text-slate-700 hover:bg-primary-100 hover:text-primary-700'
             }`}
+            aria-current={isActive ? 'page' : undefined}
         >
             {icon}
             <span>{children}</span>
@@ -406,8 +414,25 @@ const NavLink = ({ activeView, targetView, setView, children, icon }: { activeVi
 };
 
 // --- MAIN APP ---
+const ThemeContext = createContext<{
+    darkMode: boolean;
+    toggleDarkMode: () => void;
+} | null>(null);
+
+export const useTheme = () => {
+    const context = useContext(ThemeContext);
+    if (!context) {
+        throw new Error('useTheme must be used within a ThemeProvider');
+    }
+    return context;
+};
+
 export default function App() {
     const [view, setView] = useState<View>('dashboard');
+    const [darkMode, setDarkMode] = useLocalStorage('darkMode', false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    const toggleDarkMode = () => setDarkMode(prev => !prev);
 
     const renderView = () => {
         switch (view) {
@@ -430,30 +455,104 @@ export default function App() {
 
     return (
         <AppProvider>
-            <div className="flex h-screen bg-slate-100">
-                <aside className="w-64 bg-white border-r border-slate-200 p-4 flex flex-col">
-                    <div className="flex items-center space-x-2 mb-8">
-                         <div className="p-2 bg-primary-500 rounded-lg">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                         </div>
-                        <h1 className="text-xl font-bold text-slate-800">ProTracker</h1>
+            <ToastProvider>
+                <ThemeContext.Provider value={{ darkMode, toggleDarkMode }}>
+                <div className={`flex h-screen transition-colors duration-200 ${darkMode ? 'dark bg-slate-900' : 'bg-slate-100'}`}>
+                    {/* Mobile sidebar overlay */}
+                    {sidebarOpen && (
+                        <div 
+                            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+                            onClick={() => setSidebarOpen(false)}
+                            aria-hidden="true"
+                        />
+                    )}
+                    
+                    {/* Sidebar */}
+                    <aside className={`
+                        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+                        fixed lg:static inset-y-0 left-0 z-50 w-64 
+                        ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} 
+                        border-r p-4 flex flex-col transition-transform duration-300 ease-in-out
+                    `}>
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center space-x-2">
+                                <div className="p-2 bg-primary-500 rounded-lg">
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                </div>
+                                <h1 className={`text-xl font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>ProTracker</h1>
+                            </div>
+                            <button
+                                onClick={() => setSidebarOpen(false)}
+                                className={`lg:hidden p-2 rounded-md ${darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                aria-label="Close sidebar"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <nav className="flex flex-col space-y-2 flex-grow">
+                            <NavLink activeView={view} targetView="dashboard" setView={setView} icon={<DashboardIcon />}>Dashboard</NavLink>
+                            <NavLink activeView={view} targetView="clients-projects" setView={setView} icon={<FolderIcon />}>Clients & Projects</NavLink>
+                            <NavLink activeView={view} targetView="time-entries" setView={setView} icon={<TimeIcon />}>Time Entries</NavLink>
+                            <NavLink activeView={view} targetView="invoicing" setView={setView} icon={<InvoiceIcon />}>Invoicing</NavLink>
+                            <NavLink activeView={view} targetView="ai-assistant" setView={setView} icon={<SparklesIcon />}>AI Assistant</NavLink>
+                            
+                            <div className={`!mt-auto pt-2 ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-t`}>
+                                <button
+                                    onClick={toggleDarkMode}
+                                    className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition-colors w-full text-left mb-2 ${
+                                        darkMode 
+                                            ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
+                                            : 'text-slate-700 hover:bg-primary-100 hover:text-primary-700'
+                                    }`}
+                                    aria-label={`Switch to ${darkMode ? 'light' : 'dark'} mode`}
+                                >
+                                    {darkMode ? (
+                                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                                        </svg>
+                                    )}
+                                    <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                                </button>
+                                <NavLink activeView={view} targetView="settings" setView={setView} icon={<SettingsIcon />}>Settings</NavLink>
+                            </div>
+                        </nav>
+                    </aside>
+                    
+                    {/* Main content */}
+                    <div className="flex-1 flex flex-col min-w-0">
+                        {/* Mobile header */}
+                        <header className={`lg:hidden ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border-b px-4 py-3 flex items-center justify-between`}>
+                            <button
+                                onClick={() => setSidebarOpen(true)}
+                                className={`p-2 rounded-md ${darkMode ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-700'}`}
+                                aria-label="Open sidebar"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                            </button>
+                            <h1 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-slate-800'}`}>ProTracker</h1>
+                            <div className="w-10" /> {/* Spacer for centering */}
+                        </header>
+                        
+                        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+                            {renderView()}
+                        </main>
                     </div>
-                    <nav className="flex flex-col space-y-2 flex-grow">
-                       <NavLink activeView={view} targetView="dashboard" setView={setView} icon={<DashboardIcon />}>Dashboard</NavLink>
-                       <NavLink activeView={view} targetView="clients-projects" setView={setView} icon={<FolderIcon />}>Clients & Projects</NavLink>
-                       <NavLink activeView={view} targetView="time-entries" setView={setView} icon={<TimeIcon />}>Time Entries</NavLink>
-                       <NavLink activeView={view} targetView="invoicing" setView={setView} icon={<InvoiceIcon />}>Invoicing</NavLink>
-                       <NavLink activeView={view} targetView="ai-assistant" setView={setView} icon={<SparklesIcon />}>AI Assistant</NavLink>
-                       <div className="!mt-auto pt-2 border-t border-slate-200">
-                         <NavLink activeView={view} targetView="settings" setView={setView} icon={<SettingsIcon />}>Settings</NavLink>
-                       </div>
-                    </nav>
-                </aside>
-                <main className="flex-1 overflow-y-auto p-8">
-                    {renderView()}
-                </main>
-                <SyncNotification />
-            </div>
+                    
+                    <SyncNotification />
+                </div>
+            </ThemeContext.Provider>
+            </ToastProvider>
         </AppProvider>
     );
 }

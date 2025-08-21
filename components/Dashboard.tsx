@@ -65,9 +65,15 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
     });
 
     return (
-        <div>
-            <h1 className="text-3xl font-bold text-slate-800 mb-6">Dashboard</h1>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-200 transition-colors duration-200">Dashboard</h1>
+                <div className="mt-3 sm:mt-0 text-sm text-slate-600 dark:text-slate-400">
+                    Last updated: {new Date().toLocaleString()}
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                 <StatCard title="Hours Logged (Week)" value={getTotalHours(thisWeekEntries)} unit="hrs" />
                 <StatCard title="Billable Hours (Week)" value={getBillableHours(thisWeekEntries)} unit="hrs" />
                 <StatCard title="Total Unbilled" value={getUnbilledAmount() || '$0.00'} unit="" />
