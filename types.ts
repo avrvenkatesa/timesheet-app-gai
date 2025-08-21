@@ -129,6 +129,12 @@ export interface BillerInfo {
   email: string;
   phone: string;
   website: string;
+  bankName: string;
+  branchName: string;
+  accountName: string;
+  accountNumber: string;
+  accountType: string;
+  ifscCode: string;
 }
 
 export type View = 'dashboard' | 'clients-projects' | 'time-entries' | 'invoicing' | 'ai-assistant' | 'settings';

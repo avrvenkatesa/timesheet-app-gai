@@ -58,6 +58,45 @@ const BillerInfoForm = () => {
                 <Label htmlFor="website">Website (Optional)</Label>
                 <Input id="website" name="website" value={formState.website} onChange={handleChange} placeholder="www.your-freelance-site.com"/>
             </div>
+            
+            <div className="border-t pt-6">
+                <h4 className="font-semibold text-slate-800 mb-4">Bank Information</h4>
+                <p className="text-slate-500 mb-4">This banking information will be included on your invoices for client payments.</p>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="bankName">Bank Name</Label>
+                        <Input id="bankName" name="bankName" value={formState.bankName || ''} onChange={handleChange} placeholder="e.g. Chase Bank"/>
+                    </div>
+                    <div>
+                        <Label htmlFor="branchName">Branch Name</Label>
+                        <Input id="branchName" name="branchName" value={formState.branchName || ''} onChange={handleChange} placeholder="e.g. Downtown Branch"/>
+                    </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="accountName">Account Name</Label>
+                        <Input id="accountName" name="accountName" value={formState.accountName || ''} onChange={handleChange} placeholder="Account holder name"/>
+                    </div>
+                    <div>
+                        <Label htmlFor="accountNumber">Account Number</Label>
+                        <Input id="accountNumber" name="accountNumber" value={formState.accountNumber || ''} onChange={handleChange} placeholder="Account number"/>
+                    </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <Label htmlFor="accountType">Account Type</Label>
+                        <Input id="accountType" name="accountType" value={formState.accountType || ''} onChange={handleChange} placeholder="e.g. Savings, Checking, Business"/>
+                    </div>
+                    <div>
+                        <Label htmlFor="ifscCode">IFSC Code</Label>
+                        <Input id="ifscCode" name="ifscCode" value={formState.ifscCode || ''} onChange={handleChange} placeholder="e.g. SBIN0001234"/>
+                    </div>
+                </div>
+            </div>
+            
             <div className="flex justify-end">
                 <Button type="submit" disabled={saveState === 'saving'}>
                     {saveState === 'saving' && 'Saving...'}
