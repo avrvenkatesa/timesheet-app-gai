@@ -1,4 +1,3 @@
-
 import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
 import type { View, Client, Project, TimeEntry, Invoice, BillerInfo } from './types';
 import { ProjectStatus, InvoiceStatus } from './types';
@@ -37,7 +36,7 @@ const getInitialData = () => {
         { id: generateId(), projectId: project2Id, date: '2023-10-27', description: 'Internal project management.', hours: 1, isBillable: false, invoiceId: null },
     ];
     const initialInvoices: Invoice[] = [];
-    
+
     const initialBillerInfo: BillerInfo = {
         name: 'Your Freelance Business',
         address: '123 Main Street\nYour City, ST 12345',
@@ -129,7 +128,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const addProject = (project: Omit<Project, 'id'>) => setProjects(prev => [...prev, { ...project, id: generateId() }]);
     const updateProject = (updatedProject: Project) => setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
-    
+
     const addTimeEntry = (entry: Omit<TimeEntry, 'id'>) => setTimeEntries(prev => [...prev, { ...entry, id: generateId() }].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     const updateTimeEntry = (updatedEntry: TimeEntry) => setTimeEntries(prev => prev.map(t => t.id === updatedEntry.id ? updatedEntry : t));
     const deleteTimeEntry = (entryId: string) => setTimeEntries(prev => prev.filter(t => t.id !== entryId));
@@ -146,7 +145,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             invoiceData.timeEntryIds.includes(entry.id) ? { ...entry, invoiceId: newInvoice.id } : entry
         ));
     };
-    
+
     const updateInvoice = (updatedInvoice: Invoice) => setInvoices(prev => prev.map(i => i.id === updatedInvoice.id ? updatedInvoice : i));
 
     const updateBillerInfo = (info: BillerInfo) => setBillerInfo(info);
@@ -159,7 +158,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const importData = async (jsonString: string, mergeMode: 'replace' | 'merge' = 'merge') => {
         const result = await dataManager.importData(jsonString, mergeMode);
-        
+
         if (result.success && result.data) {
             if (mergeMode === 'replace') {
                 setClients(result.data.clients);
@@ -174,19 +173,19 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                     const newClients = result.data!.clients.filter(c => !existingIds.has(c.id));
                     return [...prev, ...newClients];
                 });
-                
+
                 setProjects(prev => {
                     const existingIds = new Set(prev.map(p => p.id));
                     const newProjects = result.data!.projects.filter(p => !existingIds.has(p.id));
                     return [...prev, ...newProjects];
                 });
-                
+
                 setTimeEntries(prev => {
                     const existingIds = new Set(prev.map(t => t.id));
                     const newEntries = result.data!.timeEntries.filter(t => !existingIds.has(t.id));
                     return [...prev, ...newEntries].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
                 });
-                
+
                 setInvoices(prev => {
                     const existingIds = new Set(prev.map(i => i.id));
                     const newInvoices = result.data!.invoices.filter(i => !existingIds.has(i.id));
@@ -194,7 +193,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 });
             }
         }
-        
+
         return result;
     };
 
@@ -226,7 +225,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         try {
             const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo);
             const syncedData = await dataManager.syncData(snapshot);
-            
+
             // Update state if synced data is different
             if (syncedData.lastModified !== snapshot.lastModified) {
                 setClients(syncedData.clients);
@@ -235,7 +234,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setInvoices(syncedData.invoices);
                 setBillerInfo(syncedData.billerInfo);
             }
-            
+
             setSyncStatus('success');
             setLastSyncTime(Date.now());
         } catch (error) {
@@ -280,7 +279,7 @@ const TimeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-
 const FolderIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>;
 const InvoiceIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
 const DashboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>;
-const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0018.49 9.51l1.106.276a1 1 0 01.894 1.447l-.276 1.106a1 1 0 00.49 1.491l1.106.276a1 1 0 010 1.788l-1.106.276a1 1 0 00-.49 1.49l.276 1.106a1 1 0 01-.894 1.447l-1.106-.276a1 1 0 00-1.49.49l-.276 1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.491.49l-.276 1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
+const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0018.49 9.51l1.106.276a1 1 0 01.894 1.447l-.276 1.106a1 1 0 00.49 1.491l1.106.276a1 1 0 010 1.788l-1.106.276a1 1 0 00-.49 1.49l.276 1.106a1 1 0 01-.894 1.447l-1.106-.276a1 1 0 00-1.49.49l-.276 1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.491.49l-.276-1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
 const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 
 
