@@ -380,7 +380,56 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
             stopMinutes += 24 * 60;
         }
 
-        return (stopMinutes - startMinutes) / 60;
+        const hours = (stopMinutes - startMinutes) / 60;
+        // Round up to two decimals
+        return Math.ceil(hours * 100) / 100;
+    };
+
+    // Calculate expected stop time from start time and hours
+    const calculateStopTime = (startTime: string, hours: number) => {
+        if (!startTime || hours <= 0) return '';
+
+        const [startHour, startMin] = startTime.split(':').map(Number);
+        const startMinutes = startHour * 60 + startMin;
+        const endMinutes = startMinutes + (hours * 60);
+        
+        const endHour = Math.floor(endMinutes / 60) % 24;
+        const endMin = Math.floor(endMinutes % 60);
+        
+        return `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+    };
+
+    // Calculate expected start time from stop time and hours
+    const calculateStartTime = (stopTime: string, hours: number) => {
+        if (!stopTime || hours <= 0) return '';
+
+        const [stopHour, stopMin] = stopTime.split(':').map(Number);
+        const stopMinutes = stopHour * 60 + stopMin;
+        const startMinutes = stopMinutes - (hours * 60);
+        
+        let actualStartMinutes = startMinutes;
+        if (actualStartMinutes < 0) {
+            actualStartMinutes += 24 * 60; // Previous day
+        }
+        
+        const startHour = Math.floor(actualStartMinutes / 60) % 24;
+        const startMin = Math.floor(actualStartMinutes % 60);
+        
+        return `${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}`;
+    };
+
+    // Validate time consistency
+    const validateTimeConsistency = (startTime: string, stopTime: string, hours: number) => {
+        if (!startTime || !stopTime || hours <= 0) return null;
+        
+        const calculatedHours = calculateHours(startTime, stopTime);
+        const tolerance = 0.01; // Allow small floating point differences
+        
+        if (Math.abs(calculatedHours - hours) > tolerance) {
+            return `Time mismatch: Start/Stop times indicate ${calculatedHours.toFixed(2)} hours, but ${hours.toFixed(2)} hours entered`;
+        }
+        
+        return null;
     };
 
     const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -396,25 +445,55 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         setFormData(updatedData);
     };
 
+    const handleHoursChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const hours = parseFloat(e.target.value) || 0;
+        const updatedData = { ...formData, hours };
+
+        // If we have start time and hours, calculate stop time
+        if (formData.startTime && hours > 0) {
+            updatedData.stopTime = calculateStopTime(formData.startTime, hours);
+        }
+        // If we have stop time and hours, calculate start time
+        else if (formData.stopTime && hours > 0) {
+            updatedData.startTime = calculateStartTime(formData.stopTime, hours);
+        }
+
+        setFormData(updatedData);
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
         if (type === 'checkbox') {
             const { checked } = e.target as HTMLInputElement;
             setFormData(prev => ({ ...prev, [name]: checked }));
+        } else if (name === 'hours') {
+            handleHoursChange(e as React.ChangeEvent<HTMLInputElement>);
         } else {
-             setFormData(prev => ({ ...prev, [name]: name === 'hours' ? parseFloat(value) || 0 : value }));
+             setFormData(prev => ({ ...prev, [name]: value }));
         }
     };
 
     useEffect(() => {
+        let error = '';
+        
+        // Check for time overlap
         if (formData.startTime && formData.stopTime) {
-            const hours = calculateHours(formData.startTime, formData.stopTime);
-            setFormData(prev => ({ ...prev, hours }));
-
-            const error = checkForOverlap(formData.date, formData.startTime, formData.stopTime, editEntry?.id);
-            setValidationError(error || '');
+            const overlapError = checkForOverlap(formData.date, formData.startTime, formData.stopTime, editEntry?.id);
+            if (overlapError) {
+                error = overlapError;
+            }
         }
-    }, [formData.startTime, formData.stopTime, formData.date, editEntry?.id]);
+
+        // Check for time consistency when all three values are present
+        if (formData.startTime && formData.stopTime && formData.hours > 0) {
+            const consistencyError = validateTimeConsistency(formData.startTime, formData.stopTime, formData.hours);
+            if (consistencyError) {
+                error = consistencyError;
+            }
+        }
+
+        setValidationError(error);
+    }, [formData.startTime, formData.stopTime, formData.hours, formData.date, editEntry?.id]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -465,7 +544,7 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><Label htmlFor="date">Date</Label><Input id="date" name="date" type="date" value={formData.date || ''} onChange={handleChange} required /></div>
-                <div><Label htmlFor="hours">Hours</Label><Input id="hours" name="hours" type="number" step="0.25" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
+                <div><Label htmlFor="hours">Hours</Label><Input id="hours" name="hours" type="number" step="0.01" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div><Label htmlFor="startTime">Start Time</Label><Input id="startTime" name="startTime" type="time" value={formData.startTime || ''} onChange={handleTimeChange} /></div>
