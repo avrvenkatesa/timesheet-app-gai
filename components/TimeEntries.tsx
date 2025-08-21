@@ -55,8 +55,12 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
 }) => {
   const { projects, clients } = useAppContext();
   const [currentTime, setCurrentTime] = useState(0);
+  const [selectedClientId, setSelectedClientId] = useState('');
   
   const activeProjects = projects.filter(p => p.status === ProjectStatus.Active);
+  const clientProjects = selectedClientId 
+    ? activeProjects.filter(p => p.clientId === selectedClientId)
+    : [];
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -69,6 +73,16 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
     return () => clearInterval(interval);
   }, [timer.isRunning, timer.isPaused, timer.startTime, timer.pausedTime]);
 
+  // Update selected client when project changes
+  useEffect(() => {
+    if (timer.projectId) {
+      const project = projects.find(p => p.id === timer.projectId);
+      if (project && project.clientId !== selectedClientId) {
+        setSelectedClientId(project.clientId);
+      }
+    }
+  }, [timer.projectId, projects, selectedClientId]);
+
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
     const hours = Math.floor(totalSeconds / 3600);
@@ -79,10 +93,21 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
 
   const handleStart = () => {
     if (!timer.projectId || !timer.description.trim()) {
-      alert('Please select a project and enter a description before starting the timer.');
+      alert('Please select a client, project and enter a description before starting the timer.');
       return;
     }
     onStart(timer.projectId, timer.description);
+  };
+
+  const handleClientChange = (clientId: string) => {
+    setSelectedClientId(clientId);
+    // Clear project selection when client changes
+    if (timer.projectId) {
+      const currentProject = projects.find(p => p.id === timer.projectId);
+      if (!currentProject || currentProject.clientId !== clientId) {
+        onUpdate('', timer.description);
+      }
+    }
   };
 
   return (
@@ -121,22 +146,36 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <Label htmlFor="timer-client">Client</Label>
+              <Select
+                id="timer-client"
+                value={selectedClientId}
+                onChange={(e) => handleClientChange(e.target.value)}
+                disabled={timer.isRunning && !timer.isPaused}
+              >
+                <option value="">Select client...</option>
+                {clients.filter(client => 
+                  activeProjects.some(p => p.clientId === client.id)
+                ).map(client => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </Select>
+            </div>
             <div>
               <Label htmlFor="timer-project">Project</Label>
               <Select
                 id="timer-project"
                 value={timer.projectId}
                 onChange={(e) => onUpdate(e.target.value, timer.description)}
-                disabled={timer.isRunning && !timer.isPaused}
+                disabled={timer.isRunning && !timer.isPaused || !selectedClientId}
               >
-                <option value="">Select project...</option>
-                {clients.map(client => (
-                  <optgroup label={client.name} key={client.id}>
-                    {activeProjects.filter(p => p.clientId === client.id).map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </optgroup>
+                <option value="">
+                  {selectedClientId ? 'Select project...' : 'Select client first...'}
+                </option>
+                {clientProjects.map(project => (
+                  <option key={project.id} value={project.id}>{project.name}</option>
                 ))}
               </Select>
             </div>
