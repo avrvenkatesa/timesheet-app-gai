@@ -29,6 +29,17 @@ export interface Client {
   billingAddress: string;
 }
 
+export interface ProjectPhase {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  estimatedHours: number;
+  order: number;
+  isArchived: boolean;
+  createdDate: string;
+}
+
 export interface Project {
   id: string;
   clientId: string;
@@ -46,11 +57,13 @@ export interface Project {
   tasks?: ProjectTask[];
   milestones?: ProjectMilestone[];
   templateId?: string;
+  phases?: ProjectPhase[];
 }
 
 export interface TimeEntry {
   id: string;
   projectId: string;
+  phaseId?: string; // Optional phase assignment
   date: string; // YYYY-MM-DD
   description: string;
   hours: number;
@@ -186,6 +199,16 @@ export interface ClientNote {
   createdBy: string;
 }
 
+export interface PhaseAnalytics {
+  phaseId: string;
+  phaseName: string;
+  estimatedHours: number;
+  actualHours: number;
+  billableHours: number;
+  completionPercentage: number;
+  revenue: number;
+}
+
 export interface ProjectAnalytics {
   projectId: string;
   totalHours: number;
@@ -194,6 +217,7 @@ export interface ProjectAnalytics {
   profitMargin: number;
   averageHourlyRate: number;
   completionPercentage: number;
+  phaseAnalytics?: PhaseAnalytics[];
 }
 
 export interface TimeReport {

@@ -28,6 +28,7 @@ interface TimerState {
   pausedTime: number;
   projectId: string;
   description: string;
+  phaseId?: string;
 }
 
 interface Filters {
@@ -47,18 +48,23 @@ const initialFilters: Filters = {
 // --- Timer Component ---
 const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
   timer: TimerState;
-  onStart: (projectId: string, description: string) => void;
+  onStart: (projectId: string, description: string, phaseId?: string) => void;
   onPause: () => void;
   onStop: () => void;
-  onUpdate: (projectId: string, description: string) => void;
+  onUpdate: (projectId: string, description: string, phaseId?: string) => void;
 }) => {
-  const { projects, clients } = useAppContext();
+  const { projects, clients, projectPhases } = useAppContext();
   const [currentTime, setCurrentTime] = useState(0);
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [selectedPhaseId, setSelectedPhaseId] = useState('');
 
   const activeProjects = projects.filter(p => p.status === ProjectStatus.Active);
   const clientProjects = selectedClientId 
     ? activeProjects.filter(p => p.clientId === selectedClientId)
+    : [];
+  const availablePhases = timer.projectId 
+    ? projectPhases.filter(phase => phase.projectId === timer.projectId && !phase.isArchived)
+        .sort((a, b) => a.order - b.order)
     : [];
 
   useEffect(() => {
@@ -95,18 +101,29 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
       alert('Please select a client, project and enter a description before starting the timer.');
       return;
     }
-    onStart(timer.projectId, timer.description);
+    onStart(timer.projectId, timer.description, timer.phaseId);
   };
 
   const handleClientChange = (clientId: string) => {
     setSelectedClientId(clientId);
-    // Clear project selection when client changes
+    // Clear project and phase selection when client changes
     if (timer.projectId) {
       const currentProject = projects.find(p => p.id === timer.projectId);
       if (!currentProject || currentProject.clientId !== clientId) {
-        onUpdate('', timer.description);
+        onUpdate('', timer.description, '');
+        setSelectedPhaseId('');
       }
     }
+  };
+
+  const handleProjectChange = (projectId: string) => {
+    onUpdate(projectId, timer.description, '');
+    setSelectedPhaseId('');
+  };
+
+  const handlePhaseChange = (phaseId: string) => {
+    setSelectedPhaseId(phaseId);
+    onUpdate(timer.projectId, timer.description, phaseId);
   };
 
   return (
@@ -145,7 +162,7 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <Label htmlFor="timer-client">Client</Label>
               <Select
@@ -167,7 +184,7 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
               <Select
                 id="timer-project"
                 value={timer.projectId}
-                onChange={(e) => onUpdate(e.target.value, timer.description)}
+                onChange={(e) => handleProjectChange(e.target.value)}
                 disabled={timer.isRunning && !timer.isPaused || !selectedClientId}
               >
                 <option value="">
@@ -179,11 +196,27 @@ const Timer = ({ timer, onStart, onPause, onStop, onUpdate }: {
               </Select>
             </div>
             <div>
+              <Label htmlFor="timer-phase">Phase (Optional)</Label>
+              <Select
+                id="timer-phase"
+                value={selectedPhaseId}
+                onChange={(e) => handlePhaseChange(e.target.value)}
+                disabled={timer.isRunning && !timer.isPaused || !timer.projectId}
+              >
+                <option value="">
+                  {timer.projectId ? 'No specific phase...' : 'Select project first...'}
+                </option>
+                {availablePhases.map(phase => (
+                  <option key={phase.id} value={phase.id}>{phase.name}</option>
+                ))}
+              </Select>
+            </div>
+            <div>
               <Label htmlFor="timer-description">Description</Label>
               <Input
                 id="timer-description"
                 value={timer.description}
-                onChange={(e) => onUpdate(timer.projectId, e.target.value)}
+                onChange={(e) => onUpdate(timer.projectId, e.target.value, timer.phaseId)}
                 placeholder="What are you working on?"
                 disabled={timer.isRunning && !timer.isPaused}
               />
@@ -328,10 +361,11 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
   templates: TimeTemplate[];
   onUseTemplate: (template: TimeTemplate) => void;
 }) => {
-    const { projects, clients, timeEntries } = useAppContext();
+    const { projects, clients, timeEntries, projectPhases } = useAppContext();
     const [formData, setFormData] = useState<Omit<TimeEntry, 'id' | 'invoiceId'>>({
         date: editEntry?.date || new Date().toISOString().split('T')[0],
         projectId: editEntry?.projectId || '',
+        phaseId: editEntry?.phaseId || '',
         description: editEntry?.description || '',
         hours: editEntry?.hours || 0,
         isBillable: editEntry?.isBillable ?? true,
@@ -341,6 +375,10 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
     const [validationError, setValidationError] = useState('');
 
     const activeProjects = projects.filter(p => p.status === ProjectStatus.Active);
+    const availablePhases = formData.projectId 
+        ? projectPhases.filter(phase => phase.projectId === formData.projectId && !phase.isArchived)
+            .sort((a, b) => a.order - b.order)
+        : [];
 
     // Check for overlapping time entries
     const checkForOverlap = (date: string, startTime: string, endTime: string, excludeId?: string) => {
@@ -570,6 +608,15 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
                 </Select>
             </div>
             <div>
+                <Label htmlFor="phaseId">Phase (Optional)</Label>
+                <Select id="phaseId" name="phaseId" value={formData.phaseId || ''} onChange={handleChange}>
+                    <option value="">No specific phase</option>
+                    {availablePhases.map(phase => (
+                        <option key={phase.id} value={phase.id}>{phase.name}</option>
+                    ))}
+                </Select>
+            </div>
+            <div>
                 <Label htmlFor="description">Task Description</Label>
                 <Textarea id="description" name="description" value={formData.description} onChange={handleChange} required rows={3}/>
             </div>
@@ -626,14 +673,15 @@ export default function TimeEntries() {
     };
 
     // Timer functions
-    const handleTimerStart = (projectId: string, description: string) => {
+    const handleTimerStart = (projectId: string, description: string, phaseId?: string) => {
         setTimer({
             isRunning: true,
             isPaused: false,
             startTime: Date.now(),
             pausedTime: timer.isPaused ? timer.pausedTime : 0,
             projectId,
-            description
+            description,
+            phaseId
         });
     };
 
@@ -655,6 +703,7 @@ export default function TimeEntries() {
             addTimeEntry({
                 date: new Date().toISOString().split('T')[0],
                 projectId: timer.projectId,
+                phaseId: timer.phaseId,
                 description: timer.description,
                 hours: Math.round(hours * 100) / 100, // Round to 2 decimal places
                 isBillable: true,
@@ -670,12 +719,13 @@ export default function TimeEntries() {
             startTime: null,
             pausedTime: 0,
             projectId: '',
-            description: ''
+            description: '',
+            phaseId: ''
         });
     };
 
-    const handleTimerUpdate = (projectId: string, description: string) => {
-        setTimer(prev => ({ ...prev, projectId, description }));
+    const handleTimerUpdate = (projectId: string, description: string, phaseId?: string) => {
+        setTimer(prev => ({ ...prev, projectId, description, phaseId }));
     };
 
     // Template functions
@@ -881,6 +931,7 @@ export default function TimeEntries() {
                                     </th>
                                     <th scope="col" className="px-6 py-3">Date</th>
                                     <th scope="col" className="px-6 py-3">Client / Project</th>
+                                    <th scope="col" className="px-6 py-3">Phase</th>
                                     <th scope="col" className="px-6 py-3">Description</th>
                                     <th scope="col" className="px-6 py-3 text-center">Start Time</th>
                                     <th scope="col" className="px-6 py-3 text-center">Stop Time</th>
@@ -894,6 +945,7 @@ export default function TimeEntries() {
                                {filteredEntries.map(entry => {
                                    const project = projects.find(p => p.id === entry.projectId);
                                    const client = project ? clients.find(c => c.id === project.clientId) : null;
+                                   const phase = entry.phaseId ? projectPhases.find(p => p.id === entry.phaseId) : null;
                                    const billableAmount = (entry.isBillable && project) ? entry.hours * project.hourlyRate : 0;
 
                                    return (
@@ -910,6 +962,15 @@ export default function TimeEntries() {
                                        <td className="px-6 py-4">
                                            <div className="font-medium text-slate-900">{client?.name}</div>
                                            <div className="text-slate-500">{project?.name}</div>
+                                       </td>
+                                       <td className="px-6 py-4">
+                                           {phase ? (
+                                               <span className="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                                   {phase.name}
+                                               </span>
+                                           ) : (
+                                               <span className="text-slate-400 text-sm">—</span>
+                                           )}
                                        </td>
                                        <td className="px-6 py-4 max-w-sm truncate">{entry.description}</td>
                                        <td className="px-6 py-4 text-center">

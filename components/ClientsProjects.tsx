@@ -89,6 +89,7 @@ const ClientAccordionItem = ({ client }: { client: Client }) => {
     const [isOpen, setIsOpen] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalInitialState, setModalInitialState] = useState<FormState>({});
+    const [phasesModalProject, setPhasesModalProject] = useState<Project | null>(null);
     
     const clientProjects = projects.filter(p => p.clientId === client.id);
 
@@ -154,16 +155,21 @@ const ClientAccordionItem = ({ client }: { client: Client }) => {
                     {clientProjects.length > 0 ? (
                         <div className="divide-y divide-slate-100">
                         {clientProjects.map(project => (
-                             <div key={project.id} className="py-3 flex justify-between items-center">
-                                <div>
-                                    <p className="font-semibold text-slate-800">{project.name}</p>
-                                    <p className="text-sm text-slate-500">{formatCurrency(project.hourlyRate, project.currency)}/hr</p>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${project.status === ProjectStatus.Active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
-                                        {project.status}
-                                    </span>
-                                    <Button variant="secondary" size="sm" onClick={() => toggleArchive(project)}><ArchiveIcon/></Button>
+                             <div key={project.id} className="py-3">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <p className="font-semibold text-slate-800">{project.name}</p>
+                                        <p className="text-sm text-slate-500">{formatCurrency(project.hourlyRate, project.currency)}/hr</p>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${project.status === ProjectStatus.Active ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
+                                            {project.status}
+                                        </span>
+                                        <Button variant="secondary" size="sm" onClick={() => setPhasesModalProject(project)}>
+                                            Phases
+                                        </Button>
+                                        <Button variant="secondary" size="sm" onClick={() => toggleArchive(project)}><ArchiveIcon/></Button>
+                                    </div>
                                 </div>
                              </div>
                         ))}
@@ -176,6 +182,14 @@ const ClientAccordionItem = ({ client }: { client: Client }) => {
              <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={modalInitialState.id ? 'Edit Project' : 'Add New Project'}>
                 <ClientProjectForm initialState={modalInitialState} onSave={handleSave} onCancel={() => setIsModalOpen(false)} />
             </Modal>
+
+            {phasesModalProject && (
+                <ProjectPhasesModal
+                    project={phasesModalProject}
+                    isOpen={!!phasesModalProject}
+                    onClose={() => setPhasesModalProject(null)}
+                />
+            )}
         </Card>
     );
 };
@@ -324,6 +338,153 @@ const ProjectTemplatesSection = () => {
                 </Modal>
             </CardContent>
         </Card>
+    );
+};
+
+// --- Project Phases Management ---
+const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; isOpen: boolean; onClose: () => void }) => {
+    const { projectPhases, addProjectPhase, updateProjectPhase, deleteProjectPhase, reorderProjectPhases, getPhaseAnalytics } = useAppContext();
+    const [formData, setFormData] = useState({
+        name: '',
+        description: '',
+        estimatedHours: 0
+    });
+
+    const projectPhasesList = projectPhases
+        .filter(phase => phase.projectId === project.id && !phase.isArchived)
+        .sort((a, b) => a.order - b.order);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const maxOrder = projectPhasesList.length > 0 ? Math.max(...projectPhasesList.map(p => p.order)) : -1;
+        addProjectPhase({
+            projectId: project.id,
+            name: formData.name,
+            description: formData.description,
+            estimatedHours: formData.estimatedHours,
+            order: maxOrder + 1,
+            isArchived: false,
+            createdDate: new Date().toISOString().split('T')[0]
+        });
+        setFormData({ name: '', description: '', estimatedHours: 0 });
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ 
+            ...prev, 
+            [name]: name === 'estimatedHours' ? parseFloat(value) || 0 : value 
+        }));
+    };
+
+    const handleArchivePhase = (phaseId: string) => {
+        if (window.confirm('Archive this phase? Time entries will be preserved but the phase will be hidden.')) {
+            deleteProjectPhase(phaseId);
+        }
+    };
+
+    return (
+        <Modal isOpen={isOpen} onClose={onClose} title={`Phases for ${project.name}`}>
+            <div className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-4 border-b border-slate-200 pb-4">
+                    <h3 className="font-medium text-slate-800">Add New Phase</h3>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div>
+                            <Label htmlFor="phaseName">Phase Name</Label>
+                            <Input
+                                id="phaseName"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleChange}
+                                placeholder="e.g., Planning, Development, Testing"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <Label htmlFor="estimatedHours">Estimated Hours</Label>
+                            <Input
+                                id="estimatedHours"
+                                name="estimatedHours"
+                                type="number"
+                                step="0.25"
+                                min="0"
+                                value={formData.estimatedHours}
+                                onChange={handleChange}
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div>
+                        <Label htmlFor="phaseDescription">Description</Label>
+                        <Input
+                            id="phaseDescription"
+                            name="description"
+                            value={formData.description}
+                            onChange={handleChange}
+                            placeholder="Phase description..."
+                        />
+                    </div>
+                    <Button type="submit" size="sm">Add Phase</Button>
+                </form>
+
+                <div>
+                    <h3 className="font-medium text-slate-800 mb-3">Project Phases</h3>
+                    {projectPhasesList.length === 0 ? (
+                        <p className="text-slate-500 text-center py-4">No phases created yet.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {projectPhasesList.map((phase, index) => {
+                                const analytics = getPhaseAnalytics(phase.id);
+                                return (
+                                    <div key={phase.id} className="border border-slate-200 rounded-lg p-4">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex-1">
+                                                <h4 className="font-semibold text-slate-800">{phase.name}</h4>
+                                                {phase.description && (
+                                                    <p className="text-sm text-slate-600 mt-1">{phase.description}</p>
+                                                )}
+                                            </div>
+                                            <Button
+                                                variant="secondary"
+                                                size="sm"
+                                                onClick={() => handleArchivePhase(phase.id)}
+                                            >
+                                                <ArchiveIcon />
+                                            </Button>
+                                        </div>
+                                        
+                                        {analytics && (
+                                            <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
+                                                <div>
+                                                    <span className="text-slate-500">Estimated:</span>
+                                                    <p className="font-medium">{phase.estimatedHours}h</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500">Actual:</span>
+                                                    <p className="font-medium">{analytics.actualHours.toFixed(1)}h</p>
+                                                </div>
+                                                <div>
+                                                    <span className="text-slate-500">Progress:</span>
+                                                    <div className="flex items-center">
+                                                        <div className="w-16 bg-slate-200 rounded-full h-2 mr-2">
+                                                            <div
+                                                                className="bg-blue-600 h-2 rounded-full"
+                                                                style={{ width: `${Math.min(analytics.completionPercentage, 100)}%` }}
+                                                            ></div>
+                                                        </div>
+                                                        <span className="text-xs">{analytics.completionPercentage.toFixed(0)}%</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </Modal>
     );
 };
 

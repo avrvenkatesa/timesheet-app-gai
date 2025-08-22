@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
-import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate, ProjectTemplate, ClientNote, ProjectMilestone } from './types';
+import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate, ProjectTemplate, ClientNote, ProjectMilestone, ProjectPhase, PhaseAnalytics } from './types';
 import { ProjectStatus, InvoiceStatus, Currency } from './types';
 import { dataManager, type AppData } from './utils/dataManager';
 import Dashboard from './components/Dashboard';
@@ -19,6 +19,7 @@ const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36
 const getInitialData = () => {
     const initialClients: Client[] = [];
     const initialProjects: Project[] = [];
+    const initialProjectPhases: ProjectPhase[] = [];
     const initialTimeEntries: TimeEntry[] = [];
     const initialInvoices: Invoice[] = [];
 
@@ -36,7 +37,7 @@ const getInitialData = () => {
         ifscCode: ''
     };
 
-    return { initialClients, initialProjects, initialTimeEntries, initialInvoices, initialBillerInfo };
+    return { initialClients, initialProjects, initialProjectPhases, initialTimeEntries, initialInvoices, initialBillerInfo };
 };
 
 
@@ -70,6 +71,7 @@ function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dispatch<R
 interface AppContextType {
     clients: Client[];
     projects: Project[];
+    projectPhases: ProjectPhase[];
     timeEntries: TimeEntry[];
     invoices: Invoice[];
     payments: Payment[];
@@ -85,6 +87,10 @@ interface AppContextType {
     addProject: (project: Omit<Project, 'id'>) => void;
     updateProject: (project: Project) => void;
     deleteProject: (projectId: string) => void;
+    addProjectPhase: (phase: Omit<ProjectPhase, 'id'>) => void;
+    updateProjectPhase: (phase: ProjectPhase) => void;
+    deleteProjectPhase: (phaseId: string) => void;
+    reorderProjectPhases: (projectId: string, phaseIds: string[]) => void;
     addTimeEntry: (entry: Omit<TimeEntry, 'id'>) => void;
     updateTimeEntry: (entry: TimeEntry) => void;
     deleteTimeEntry: (entryId: string) => void;
@@ -121,8 +127,9 @@ interface AppContextType {
 
     // Advanced Reporting and Analytics
     getProjectAnalytics: (projectId: string) => any; // Placeholder for analytics data
-    generateTimeReport: (projectId?: string) => TimeEntry[]; // Placeholder for report generation
-    generateRevenueReport: (clientId?: string) => Invoice[]; // Placeholder for report generation
+    getPhaseAnalytics: (phaseId: string) => PhaseAnalytics | null; // Placeholder for phase analytics data
+    generateTimeReport: (startDate: string, endDate: string) => any; // Placeholder for report generation
+    generateRevenueReport: (startDate: string, endDate: string) => any; // Placeholder for report generation
 
     // Enhanced AI Assistant Methods
     addContract?: (contract: Omit<Contract, 'id'>) => void;
@@ -143,9 +150,10 @@ export const useAppContext = () => {
 
 // --- APP PROVIDER ---
 const AppProvider = ({ children }: { children: ReactNode }) => {
-    const { initialClients, initialProjects, initialTimeEntries, initialInvoices, initialBillerInfo } = getInitialData();
+    const { initialClients, initialProjects, initialProjectPhases, initialTimeEntries, initialInvoices, initialBillerInfo } = getInitialData();
     const [clients, setClients] = useLocalStorage<Client[]>('clients', initialClients);
     const [projects, setProjects] = useLocalStorage<Project[]>('projects', initialProjects);
+    const [projectPhases, setProjectPhases] = useLocalStorage<ProjectPhase[]>('projectPhases', initialProjectPhases);
     const [timeEntries, setTimeEntries] = useLocalStorage<TimeEntry[]>('timeEntries', initialTimeEntries);
     const [invoices, setInvoices] = useLocalStorage<Invoice[]>('invoices', initialInvoices);
     const [payments, setPayments] = useLocalStorage<Payment[]>('payments', []);
@@ -169,6 +177,22 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const addProject = (project: Omit<Project, 'id'>) => setProjects(prev => [...prev, { ...project, id: generateId() }]);
     const updateProject = (updatedProject: Project) => setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
     const deleteProject = (projectId: string) => setProjects(prev => prev.filter(p => p.id !== projectId));
+
+    // Project Phase Management
+    const addProjectPhase = (phase: Omit<ProjectPhase, 'id'>) => setProjectPhases(prev => [...prev, { ...phase, id: generateId() }]);
+    const updateProjectPhase = (updatedPhase: ProjectPhase) => setProjectPhases(prev => prev.map(p => p.id === updatedPhase.id ? updatedPhase : p));
+    const deleteProjectPhase = (phaseId: string) => {
+        setProjectPhases(prev => prev.filter(p => p.id !== phaseId));
+        // Optionally, remove phase assignment from time entries or handle orphaned phases
+        setTimeEntries(prev => prev.map(entry => entry.phaseId === phaseId ? { ...entry, phaseId: undefined } : entry));
+    };
+    const reorderProjectPhases = (projectId: string, phaseIds: string[]) => {
+        // This would involve updating the order of phases within a specific project.
+        // The current implementation stores phases globally, so this might need adjustment
+        // based on how phases are associated with projects (e.g., an array of phase IDs in the Project type).
+        console.log(`Reordering phases for project ${projectId}: ${phaseIds}`);
+        // Example: If project.phaseIds exists, update it here.
+    };
 
     const addTimeEntry = (entry: Omit<TimeEntry, 'id'>) => setTimeEntries(prev => [...prev, { ...entry, id: generateId() }].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
     const updateTimeEntry = (updatedEntry: TimeEntry) => setTimeEntries(prev => prev.map(t => t.id === updatedEntry.id ? updatedEntry : t));
@@ -269,24 +293,33 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         };
     };
 
-    const generateTimeReport = (projectId?: string): TimeEntry[] => {
-        if (projectId) {
-            return timeEntries.filter(entry => entry.projectId === projectId);
-        }
-        return timeEntries; // Return all time entries if no project is specified
+    const getPhaseAnalytics = (phaseId: string): PhaseAnalytics | null => {
+        const phase = projectPhases.find(p => p.id === phaseId);
+        if (!phase) return null;
+
+        const phaseTimeEntries = timeEntries.filter(entry => entry.phaseId === phaseId && entry.isBillable);
+        const totalHours = phaseTimeEntries.reduce((sum, entry) => sum + entry.hours, 0);
+        const totalRevenue = phaseTimeEntries.reduce((sum, entry) => {
+            const project = projects.find(p => p.id === entry.projectId);
+            return sum + (entry.hours * (project?.hourlyRate || 0));
+        }, 0);
+
+        return {
+            ...phase,
+            totalHours,
+            totalRevenue: convertCurrency(totalRevenue, Currency.USD, Currency.USD), // Assuming project currency is converted to USD if needed elsewhere
+            numberOfTimeEntries: phaseTimeEntries.length,
+        };
     };
 
-    const generateRevenueReport = (clientId?: string): Invoice[] => {
-        if (clientId) {
-            const clientProjects = projects.filter(p => p.clientId === clientId);
-            const invoiceIdsForClient = timeEntries
-                .filter(entry => clientProjects.some(p => p.id === entry.projectId) && entry.invoiceId)
-                .map(entry => entry.invoiceId!)
-                .filter((value, index, self) => self.indexOf(value) === index); // Unique invoice IDs
-            return invoices.filter(invoice => invoiceIdsForClient.includes(invoice.id));
-        }
-        return invoices; // Return all invoices if no client is specified
+    const generateTimeReport = (startDate: string, endDate: string): TimeEntry[] => {
+        return timeEntries.filter(entry => entry.date >= startDate && entry.date <= endDate);
     };
+
+    const generateRevenueReport = (startDate: string, endDate: string): Invoice[] => {
+        return invoices.filter(invoice => invoice.invoiceDate >= startDate && invoice.invoiceDate <= endDate);
+    };
+
 
     // Enhanced AI Assistant Methods
     const addContract = (contract: Omit<Contract, 'id'>) => {
@@ -312,7 +345,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     // Enhanced data management methods
     const exportData = async (): Promise<string> => {
-        const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates);
+        const snapshot = await dataManager.createSnapshot(clients, projects, projectPhases, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates);
         return await dataManager.exportData(snapshot);
     };
 
@@ -323,6 +356,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             if (mergeMode === 'replace') {
                 setClients(result.data.clients);
                 setProjects(result.data.projects);
+                setProjectPhases(result.data.projectPhases || []);
                 setTimeEntries(result.data.timeEntries);
                 setInvoices(result.data.invoices);
                 setBillerInfo(result.data.billerInfo);
@@ -346,6 +380,12 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                     const existingIds = new Set(prev.map(p => p.id));
                     const newProjects = result.data!.projects.filter(p => !existingIds.has(p.id));
                     return [...prev, ...newProjects];
+                });
+
+                setProjectPhases(prev => {
+                    const existingIds = new Set(prev.map(p => p.id));
+                    const newPhases = result.data!.projectPhases.filter(p => !existingIds.has(p.id));
+                    return [...prev, ...newPhases];
                 });
 
                 setTimeEntries(prev => {
@@ -402,6 +442,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             if (recoveredData) {
                 setClients(recoveredData.clients);
                 setProjects(recoveredData.projects);
+                setProjectPhases(recoveredData.projectPhases || []);
                 setTimeEntries(recoveredData.timeEntries);
                 setInvoices(recoveredData.invoices);
                 setBillerInfo(recoveredData.billerInfo);
@@ -429,13 +470,14 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const triggerSync = async (): Promise<void> => {
         setSyncStatus('syncing');
         try {
-            const snapshot = await dataManager.createSnapshot(clients, projects, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates);
+            const snapshot = await dataManager.createSnapshot(clients, projects, projectPhases, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates);
             const syncedData = await dataManager.syncData(snapshot);
 
             // Update state if synced data is different
             if (syncedData.lastModified !== snapshot.lastModified) {
                 setClients(syncedData.clients);
                 setProjects(syncedData.projects);
+                setProjectPhases(syncedData.projectPhases || []);
                 setTimeEntries(syncedData.timeEntries);
                 setInvoices(syncedData.invoices);
                 setBillerInfo(syncedData.billerInfo);
@@ -476,7 +518,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
         const debounceTimer = setTimeout(autoSync, 2000); // Debounce for 2 seconds
         return () => clearTimeout(debounceTimer);
-    }, [clients, projects, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates]);
+    }, [clients, projects, projectPhases, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates]);
 
     // Initial sync on app load
     useEffect(() => {
@@ -484,10 +526,11 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const value = {
-        clients, projects, timeEntries, invoices, billerInfo, payments, 
+        clients, projects, projectPhases, timeEntries, invoices, billerInfo, payments, 
         recurringTemplates, invoiceReminders, exchangeRates,
         addClient, updateClient, deleteClient,
         addProject, updateProject, deleteProject,
+        addProjectPhase, updateProjectPhase, deleteProjectPhase, reorderProjectPhases,
         addTimeEntry, updateTimeEntry, deleteTimeEntry,
         createInvoice, updateInvoice,
         addPayment, removePayment,
@@ -508,6 +551,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         updateProjectMilestone,
         deleteProjectMilestone,
         getProjectAnalytics,
+        getPhaseAnalytics,
         generateTimeReport,
         generateRevenueReport,
         // Enhanced AI Assistant methods
