@@ -26,7 +26,15 @@ export default defineConfig(({ mode }) => {
       },
       preview: {
         host: '0.0.0.0',
-        port: 5173
+        port: 5173,
+        allowedHosts: [
+          'localhost',
+          '127.0.0.1',
+          '0.0.0.0',
+          '.replit.dev',
+          '.replit.app',
+          'timesheet-app-gai-avrvenkatesa.replit.app'
+        ]
       }
     };
 });
