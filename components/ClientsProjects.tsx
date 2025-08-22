@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAppContext } from '../App';
 import type { Client, Project, ProjectTemplate, ClientNote, ProjectMilestone } from '../types';
@@ -39,7 +38,7 @@ const ClientProjectForm = ({
         e.preventDefault();
         onSave(formData);
     };
-    
+
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             {formType === 'client' && (
@@ -90,7 +89,7 @@ const ClientAccordionItem = ({ client }: { client: Client }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalInitialState, setModalInitialState] = useState<FormState>({});
     const [phasesModalProject, setPhasesModalProject] = useState<Project | null>(null);
-    
+
     const clientProjects = projects.filter(p => p.clientId === client.id);
 
     const handleDeleteClient = () => {
@@ -122,7 +121,7 @@ const ClientAccordionItem = ({ client }: { client: Client }) => {
         }
         setIsModalOpen(false);
     };
-    
+
     const toggleArchive = (project: Project) => {
         const newStatus = project.status === ProjectStatus.Active ? ProjectStatus.Archived : ProjectStatus.Active;
         updateProject({ ...project, status: newStatus });
@@ -349,32 +348,56 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
         description: '',
         estimatedHours: 0
     });
+    const [editingPhase, setEditingPhase] = useState<ProjectMilestone | null>(null);
+    const [showPhaseModal, setShowPhaseModal] = useState(false);
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
 
     const projectPhasesList = projectPhases
         .filter(phase => phase.projectId === project.id && !phase.isArchived)
         .sort((a, b) => a.order - b.order);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handlePhaseSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        const maxOrder = projectPhasesList.length > 0 ? Math.max(...projectPhasesList.map(p => p.order)) : -1;
-        addProjectPhase({
-            projectId: project.id,
-            name: formData.name,
-            description: formData.description,
-            estimatedHours: formData.estimatedHours,
-            order: maxOrder + 1,
-            isArchived: false,
-            createdDate: new Date().toISOString().split('T')[0]
-        });
+        if (!formData.name.trim()) {
+            alert('Please enter a phase name.');
+            return;
+        }
+
+        if (editingPhase) {
+            updateProjectPhase({
+                ...editingPhase,
+                ...formData
+            });
+        } else {
+            const existingPhases = projectPhases.filter(p => p.projectId === project.id && !p.isArchived);
+            const nextOrder = Math.max(...existingPhases.map(p => p.order), 0) + 1;
+            addProjectPhase({
+                projectId: project.id,
+                name: formData.name,
+                description: formData.description,
+                estimatedHours: formData.estimatedHours,
+                order: nextOrder,
+                isArchived: false,
+                createdDate: new Date().toISOString().split('T')[0]
+            });
+        }
+
+        // Reset form and close modal
         setFormData({ name: '', description: '', estimatedHours: 0 });
+        setEditingPhase(null);
+        setShowPhaseModal(false);
+        onClose(); // Close the main modal after phase submission
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ 
-            ...prev, 
-            [name]: name === 'estimatedHours' ? parseFloat(value) || 0 : value 
-        }));
+    const handleEditPhase = (phase: ProjectMilestone) => {
+        setFormData({
+            name: phase.name,
+            description: phase.description,
+            estimatedHours: phase.estimatedHours
+        });
+        setEditingPhase(phase);
+        setShowPhaseModal(true);
+        setSelectedProject(project); // Ensure selectedProject is set for submission context
     };
 
     const handleArchivePhase = (phaseId: string) => {
@@ -386,7 +409,7 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={`Phases for ${project.name}`}>
             <div className="space-y-6">
-                <form onSubmit={handleSubmit} className="space-y-4 border-b border-slate-200 pb-4">
+                <form onSubmit={handlePhaseSubmit} className="space-y-4 border-b border-slate-200 pb-4">
                     <h3 className="font-medium text-slate-800">Add New Phase</h3>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -395,7 +418,7 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
                                 id="phaseName"
                                 name="name"
                                 value={formData.name}
-                                onChange={handleChange}
+                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 placeholder="e.g., Planning, Development, Testing"
                                 required
                             />
@@ -409,7 +432,7 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
                                 step="0.25"
                                 min="0"
                                 value={formData.estimatedHours}
-                                onChange={handleChange}
+                                onChange={(e) => setFormData({ ...formData, estimatedHours: parseFloat(e.target.value) || 0 })}
                                 required
                             />
                         </div>
@@ -420,7 +443,7 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
                             id="phaseDescription"
                             name="description"
                             value={formData.description}
-                            onChange={handleChange}
+                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                             placeholder="Phase description..."
                         />
                     </div>
@@ -437,7 +460,7 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
                                 const analytics = getPhaseAnalytics(phase.id);
                                 const actualHours = analytics?.totalHours || 0;
                                 const completionPercentage = phase.estimatedHours > 0 ? (actualHours / phase.estimatedHours) * 100 : 0;
-                                
+
                                 return (
                                     <div key={phase.id} className="border border-slate-200 rounded-lg p-4">
                                         <div className="flex justify-between items-start mb-2">
@@ -447,15 +470,20 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
                                                     <p className="text-sm text-slate-600 mt-1">{phase.description}</p>
                                                 )}
                                             </div>
-                                            <Button
-                                                variant="secondary"
-                                                size="sm"
-                                                onClick={() => handleArchivePhase(phase.id)}
-                                            >
-                                                <ArchiveIcon />
-                                            </Button>
+                                            <div className="flex items-center space-x-2">
+                                                <Button variant="secondary" size="sm" onClick={() => handleEditPhase(phase)}>
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    variant="secondary"
+                                                    size="sm"
+                                                    onClick={() => handleArchivePhase(phase.id)}
+                                                >
+                                                    <ArchiveIcon />
+                                                </Button>
+                                            </div>
                                         </div>
-                                        
+
                                         <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
                                             <div>
                                                 <span className="text-slate-500">Estimated:</span>
@@ -488,6 +516,7 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
         </Modal>
     );
 };
+
 
 // --- Client Notes Management ---
 const ClientNotesModal = ({ client, isOpen, onClose }: { client: Client; isOpen: boolean; onClose: () => void }) => {

@@ -92,7 +92,7 @@ interface AppContextType {
     deleteProjectPhase: (phaseId: string) => void;
     reorderProjectPhases: (projectId: string, phaseIds: string[]) => void;
     addTimeEntry: (entry: Omit<TimeEntry, 'id'>) => void;
-    updateTimeEntry: (entry: TimeEntry) => void;
+    updateTimeEntry: (entryId: string, updatedData: Omit<TimeEntry, 'id'>) => void;
     deleteTimeEntry: (entryId: string) => void;
     createInvoice: (invoiceData: Omit<Invoice, 'id' | 'invoiceNumber'>) => void;
     updateInvoice: (invoice: Invoice) => void;
@@ -195,7 +195,9 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const addTimeEntry = (entry: Omit<TimeEntry, 'id'>) => setTimeEntries(prev => [...prev, { ...entry, id: generateId() }].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-    const updateTimeEntry = (updatedEntry: TimeEntry) => setTimeEntries(prev => prev.map(t => t.id === updatedEntry.id ? updatedEntry : t));
+    const updateTimeEntry = (entryId: string, updatedData: Omit<TimeEntry, 'id'>) => {
+        setTimeEntries(prev => prev.map(t => t.id === entryId ? { ...t, ...updatedData } : t));
+    };
     const deleteTimeEntry = (entryId: string) => setTimeEntries(prev => prev.filter(t => t.id !== entryId));
 
     const createInvoice = (invoiceData: Omit<Invoice, 'id' | 'invoiceNumber'>) => {

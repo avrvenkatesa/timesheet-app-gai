@@ -742,13 +742,18 @@ export default function TimeEntries() {
     };
 
     const handleSave = (data: Omit<TimeEntry, 'id'>) => {
-        if (editEntry) {
-            updateTimeEntry(editEntry.id, data);
-            setEditEntry(undefined);
-        } else {
-            addTimeEntry(data);
+        try {
+            if (editEntry) {
+                updateTimeEntry(editEntry.id, data);
+                setEditEntry(undefined);
+            } else {
+                addTimeEntry(data);
+            }
+            setIsModalOpen(false);
+        } catch (error) {
+            console.error('Error saving time entry:', error);
+            alert('Failed to save time entry. Please try again.');
         }
-        setIsModalOpen(false);
     };
 
     const handleEdit = (entry: TimeEntry) => {
