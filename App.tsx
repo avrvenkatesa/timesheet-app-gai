@@ -15,36 +15,19 @@ import { ToastProvider } from './components/ui/Toast';
 // --- HELPERS ---
 const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
 
-// --- MOCK DATA ---
+// --- PRODUCTION DATA ---
 const getInitialData = () => {
-    const client1Id = generateId();
-    const client2Id = generateId();
-    const project1Id = generateId();
-    const project2Id = generateId();
-    const project3Id = generateId();
-
-    const initialClients: Client[] = [
-        { id: client1Id, name: 'Innovate Corp', contactName: 'Jane Doe', contactEmail: 'jane.doe@innovate.com', billingAddress: '123 Tech Ave, Silicon Valley, CA' },
-        { id: client2Id, name: 'Creative Solutions', contactName: 'John Smith', contactEmail: 'john.smith@creative.com', billingAddress: '456 Design Rd, Arts District, NY' },
-    ];
-    const initialProjects: Project[] = [
-        { id: project1Id, clientId: client1Id, name: 'Website Redesign', description: 'Complete redesign of company website', hourlyRate: 75, currency: Currency.USD, status: ProjectStatus.Active },
-        { id: project2Id, clientId: client1Id, name: 'Internal Tools', description: 'Development of internal productivity tools', hourlyRate: 85, currency: Currency.USD, status: ProjectStatus.Active },
-        { id: project3Id, clientId: client2Id, name: 'Mobile App Development', description: 'iOS and Android app development', hourlyRate: 6000, currency: Currency.INR, status: ProjectStatus.Active },
-    ];
-    const initialTimeEntries: TimeEntry[] = [
-        { id: generateId(), projectId: project1Id, date: '2023-10-26', startTime: '09:00', endTime: '11:30', description: 'Initial client kickoff meeting and requirement gathering.', hours: 2.5, isBillable: true, invoiceId: null },
-        { id: generateId(), projectId: project2Id, date: '2023-10-27', startTime: '13:00', endTime: '19:00', description: 'Wireframing for the new homepage.', hours: 6, isBillable: true, invoiceId: null },
-        { id: generateId(), projectId: project2Id, date: '2023-10-27', startTime: '19:00', endTime: '20:00', description: 'Internal project management.', hours: 1, isBillable: false, invoiceId: null },
-    ];
+    const initialClients: Client[] = [];
+    const initialProjects: Project[] = [];
+    const initialTimeEntries: TimeEntry[] = [];
     const initialInvoices: Invoice[] = [];
 
     const initialBillerInfo: BillerInfo = {
-        name: 'Your Freelance Business',
-        address: '123 Main Street\nYour City, ST 12345',
-        email: 'your.email@example.com',
-        phone: '555-123-4567',
-        website: 'www.yourwebsite.com',
+        name: '',
+        address: '',
+        email: '',
+        phone: '',
+        website: '',
         bankName: '',
         branchName: '',
         accountName: '',
