@@ -581,13 +581,23 @@ const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-
 
 
 // --- NAVLINK COMPONENT ---
-const NavLink = ({ activeView, targetView, setView, children, icon }: { activeView: View, targetView: View, setView: React.Dispatch<React.SetStateAction<View>>, children: ReactNode, icon: ReactNode }) => {
+const NavLink = ({ activeView, targetView, setView, children, icon, setSidebarOpen }: { 
+    activeView: View, 
+    targetView: View, 
+    setView: React.Dispatch<React.SetStateAction<View>>, 
+    children: ReactNode, 
+    icon: ReactNode,
+    setSidebarOpen?: (open: boolean) => void
+}) => {
     const isActive = activeView === targetView;
     const { darkMode } = useTheme();
 
     return (
         <button
-            onClick={() => setView(targetView)}
+            onClick={() => {
+                setView(targetView);
+                setSidebarOpen?.(false);
+            }}
             className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition-colors w-full text-left ${
                 isActive 
                     ? 'bg-primary-500 text-white shadow-md' 
@@ -687,15 +697,18 @@ export default function App() {
                         </div>
 
                         <nav className="flex flex-col space-y-2 flex-grow">
-                            <NavLink activeView={view} targetView="dashboard" setView={setView} icon={<DashboardIcon />}>Dashboard</NavLink>
-                            <NavLink activeView={view} targetView="clients-projects" setView={setView} icon={<FolderIcon />}>Clients & Projects</NavLink>
-                            <NavLink activeView={view} targetView="time-entries" setView={setView} icon={<TimeIcon />}>Time Entries</NavLink>
-                            <NavLink activeView={view} targetView="invoicing" setView={setView} icon={<InvoiceIcon />}>Invoicing</NavLink>
-                            <NavLink activeView={view} targetView="ai-assistant" setView={setView} icon={<SparklesIcon />}>AI Assistant</NavLink>
+                            <NavLink activeView={view} targetView="dashboard" setView={setView} setSidebarOpen={setSidebarOpen} icon={<DashboardIcon />}>Dashboard</NavLink>
+                            <NavLink activeView={view} targetView="clients-projects" setView={setView} setSidebarOpen={setSidebarOpen} icon={<FolderIcon />}>Clients & Projects</NavLink>
+                            <NavLink activeView={view} targetView="time-entries" setView={setView} setSidebarOpen={setSidebarOpen} icon={<TimeIcon />}>Time Entries</NavLink>
+                            <NavLink activeView={view} targetView="invoicing" setView={setView} setSidebarOpen={setSidebarOpen} icon={<InvoiceIcon />}>Invoicing</NavLink>
+                            <NavLink activeView={view} targetView="ai-assistant" setView={setView} setSidebarOpen={setSidebarOpen} icon={<SparklesIcon />}>AI Assistant</NavLink>
 
                             <div className={`!mt-auto pt-2 ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-t`}>
                                 <button
-                                    onClick={toggleDarkMode}
+                                    onClick={() => {
+                                        toggleDarkMode();
+                                        setSidebarOpen(false);
+                                    }}
                                     className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition-colors w-full text-left mb-2 ${
                                         darkMode 
                                             ? 'text-slate-300 hover:bg-slate-700 hover:text-white' 
@@ -714,8 +727,8 @@ export default function App() {
                                     )}
                                     <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
                                 </button>
-                                <NavLink activeView={view} targetView="reports" setView={setView} icon={<DashboardIcon />}>Reports</NavLink> {/* Placeholder Icon */}
-                                <NavLink activeView={view} targetView="settings" setView={setView} icon={<SettingsIcon />}>Settings</NavLink>
+                                <NavLink activeView={view} targetView="reports" setView={setView} setSidebarOpen={setSidebarOpen} icon={<DashboardIcon />}>Reports</NavLink> {/* Placeholder Icon */}
+                                <NavLink activeView={view} targetView="settings" setView={setView} setSidebarOpen={setSidebarOpen} icon={<SettingsIcon />}>Settings</NavLink>
                             </div>
                         </nav>
                     </aside>
