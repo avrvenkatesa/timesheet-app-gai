@@ -6,6 +6,7 @@ import Dashboard from './components/Dashboard';
 import ClientsProjects from './components/ClientsProjects';
 import TimeEntries from './components/TimeEntries';
 import Invoicing from './components/Invoicing';
+import Expenses from './components/Expenses';
 import AIAssistant from './components/AIAssistant';
 import Settings from './components/Settings';
 import Reports from './components/Reports';
@@ -130,7 +131,11 @@ interface AppContextType {
     addExpense: (expense: Omit<Expense, 'id'>) => void;
     updateExpense: (expense: Expense) => void;
     deleteExpense: (expenseId: string) => void;
-    // Consider adding functions for receipt uploads, categorization, status updates, etc.
+    uploadReceipt: (expenseId: string, file: File) => Promise<void>;
+    deleteReceipt: (receiptId: string) => void;
+    getExpenseAnalytics: (projectId?: string, startDate?: string, endDate?: string) => any;
+    exportExpenseData: (format: 'csv' | 'json' | 'pdf') => Promise<string>;
+    expenseTemplates: any[];
 
     // Advanced Reporting and Analytics
     getProjectAnalytics: (projectId: string) => any; // Placeholder for analytics data
@@ -352,6 +357,86 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         // This would be implemented to save contracts to state/storage
         console.log('Contract saved:', contract);
     };
+
+    // Additional expense-related methods that the Expenses component expects
+    const uploadReceipt = async (expenseId: string, file: File) => {
+        // Mock implementation for receipt upload
+        console.log('Uploading receipt for expense:', expenseId, file.name);
+        // In a real app, this would upload to cloud storage and update the expense
+    };
+
+    const deleteReceipt = (receiptId: string) => {
+        // Mock implementation for receipt deletion
+        console.log('Deleting receipt:', receiptId);
+        // In a real app, this would remove the receipt from storage and update the expense
+    };
+
+    const getExpenseAnalytics = (projectId?: string, startDate?: string, endDate?: string) => {
+        const filteredExpenses = expenses.filter(expense => {
+            let matchesProject = true;
+            let matchesDateRange = true;
+
+            if (projectId && expense.projectId !== projectId) {
+                matchesProject = false;
+            }
+
+            if (startDate && expense.date < startDate) {
+                matchesDateRange = false;
+            }
+
+            if (endDate && expense.date > endDate) {
+                matchesDateRange = false;
+            }
+
+            return matchesProject && matchesDateRange;
+        });
+
+        const totalExpenses = filteredExpenses.length;
+        const totalAmount = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+        const averageAmount = totalExpenses > 0 ? totalAmount / totalExpenses : 0;
+
+        const byCategory: { [key: string]: number } = {};
+        const byStatus: { [key: string]: number } = {};
+
+        filteredExpenses.forEach(expense => {
+            byCategory[expense.category] = (byCategory[expense.category] || 0) + expense.amount;
+            byStatus[expense.status] = (byStatus[expense.status] || 0) + expense.amount;
+        });
+
+        return {
+            totalExpenses,
+            totalAmount,
+            averageAmount,
+            byCategory,
+            byStatus
+        };
+    };
+
+    const exportExpenseData = async (format: 'csv' | 'json' | 'pdf'): Promise<string> => {
+        // Mock implementation for expense data export
+        if (format === 'json') {
+            return JSON.stringify(expenses, null, 2);
+        } else if (format === 'csv') {
+            const headers = ['Date', 'Description', 'Amount', 'Currency', 'Category', 'Status', 'Project'];
+            const rows = expenses.map(expense => {
+                const project = projects.find(p => p.id === expense.projectId);
+                return [
+                    expense.date,
+                    expense.description,
+                    expense.amount.toString(),
+                    expense.currency,
+                    expense.category,
+                    expense.status,
+                    project?.name || 'No Project'
+                ];
+            });
+            return [headers, ...rows].map(row => row.join(',')).join('\n');
+        }
+        return 'PDF export not implemented';
+    };
+
+    // Add expense templates state and methods
+    const [expenseTemplates, setExpenseTemplates] = useLocalStorage<any[]>('expenseTemplates', []);
 
     // addExpense is now defined above
     // const addExpense = (expense: Omit<Expense, 'id'>) => {
@@ -590,6 +675,11 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         addExpense,
         updateExpense,
         deleteExpense,
+        uploadReceipt,
+        deleteReceipt,
+        getExpenseAnalytics,
+        exportExpenseData,
+        expenseTemplates,
         // Advanced Reporting and Analytics
         getProjectAnalytics,
         getPhaseAnalytics,
@@ -678,8 +768,8 @@ export default function App() {
                 return <TimeEntries />;
             case 'invoicing':
                 return <Invoicing />;
-            case 'expenses': // New case for Expenses component
-                return <div>Expenses Component Placeholder</div>; // Replace with actual Expenses component import and rendering
+            case 'expenses':
+                return <Expenses />;
             case 'ai-assistant':
                 return <AIAssistant />;
             case 'reports':
