@@ -1,7 +1,5 @@
-
-import React from 'react';
-import type { View } from '../types';
-import { useAppContext } from '../App';
+import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
+import { useAppContext, useTheme } from '../App';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/index';
 
 const StatCard = ({ title, value, unit }: { title: string, value: string | number, unit: string }) => (
@@ -73,26 +71,26 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
     const getProjectCompletionRate = () => {
         const projectsWithTasks = projects.filter(p => p.tasks && p.tasks.length > 0);
         if (projectsWithTasks.length === 0) return 0;
-        
+
         const totalTasks = projectsWithTasks.reduce((sum, p) => sum + (p.tasks?.length || 0), 0);
-        const completedTasks = projectsWithTasks.reduce((sum, p) => 
+        const completedTasks = projectsWithTasks.reduce((sum, p) =>
             sum + (p.tasks?.filter(t => t.isCompleted).length || 0), 0
         );
-        
+
         return totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
     };
 
     const getMonthlyRevenue = () => {
         const billableEntries = thisMonthEntries.filter(e => e.isBillable);
         let totalRevenue = 0;
-        
+
         billableEntries.forEach(entry => {
             const project = projects.find(p => p.id === entry.projectId);
             if (project) {
                 totalRevenue += entry.hours * project.hourlyRate;
             }
         });
-        
+
         return totalRevenue;
     };
 
@@ -104,7 +102,7 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
                     Last updated: {new Date().toLocaleString()}
                 </div>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
                 <StatCard title="Hours Logged (Week)" value={getTotalHours(thisWeekEntries)} unit="hrs" />
                 <StatCard title="Billable Hours (Week)" value={getBillableHours(thisWeekEntries)} unit="hrs" />
