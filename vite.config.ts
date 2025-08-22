@@ -23,6 +23,10 @@ export default defineConfig(({ mode }) => {
           '.replit.dev',
           'fb087e37-ca7a-4ae7-9d62-d76df8de099f-00-39h6j0ug50ruj.sisko.replit.dev'
         ]
+      },
+      preview: {
+        host: '0.0.0.0',
+        port: 5173
       }
     };
 });
