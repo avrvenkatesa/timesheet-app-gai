@@ -246,10 +246,88 @@ export interface Expense {
   currency: Currency;
   category: ExpenseCategory;
   isBusinessExpense: boolean;
-  receiptUrl?: string;
   projectId?: string;
+  phaseId?: string;
+  status: ExpenseStatus;
+  submittedDate?: string;
+  approvedDate?: string;
+  reimbursedDate?: string;
+  rejectedDate?: string;
+  rejectReason?: string;
+  markupPercentage?: number;
+  receipts: ExpenseReceipt[];
   tags: string[];
+  notes?: string;
+  vendor?: string;
+  templateId?: string;
   aiSuggested?: boolean;
+  statusHistory: ExpenseStatusChange[];
+}
+
+export interface ExpenseReceipt {
+  id: string;
+  expenseId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  uploadDate: string;
+  url?: string;
+  ocrData?: ExpenseOCRData;
+}
+
+export interface ExpenseOCRData {
+  extractedText: string;
+  extractedAmount?: number;
+  extractedVendor?: string;
+  extractedDate?: string;
+  confidence: number;
+}
+
+export interface ExpenseStatusChange {
+  id: string;
+  expenseId: string;
+  fromStatus: ExpenseStatus;
+  toStatus: ExpenseStatus;
+  changeDate: string;
+  changeReason?: string;
+  changedBy: string;
+}
+
+export interface ExpenseTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: ExpenseCategory;
+  defaultAmount?: number;
+  currency: Currency;
+  projectId?: string;
+  isRecurring: boolean;
+  recurringFrequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  tags: string[];
+}
+
+export interface ExpenseReport {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  projectId?: string;
+  clientId?: string;
+  expenseIds: string[];
+  totalAmount: number;
+  currency: Currency;
+  status: 'draft' | 'submitted' | 'approved' | 'reimbursed';
+  submittedDate?: string;
+  approvedDate?: string;
+  notes?: string;
+}
+
+export enum ExpenseStatus {
+  Draft = 'Draft',
+  Submitted = 'Submitted',
+  Approved = 'Approved',
+  Reimbursed = 'Reimbursed',
+  Rejected = 'Rejected'
 }
 
 export enum ExpenseCategory {
@@ -263,6 +341,10 @@ export enum ExpenseCategory {
   Internet = 'Internet',
   Phone = 'Phone',
   Utilities = 'Utilities',
+  Materials = 'Materials',
+  Equipment = 'Equipment',
+  Professional = 'Professional',
+  Subscriptions = 'Subscriptions',
   Other = 'Other'
 }
 

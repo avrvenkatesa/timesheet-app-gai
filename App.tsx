@@ -1,5 +1,5 @@
 import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
-import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate, ProjectTemplate, ClientNote, ProjectMilestone, ProjectPhase, PhaseAnalytics } from './types';
+import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate, ProjectTemplate, ClientNote, ProjectMilestone, ProjectPhase, PhaseAnalytics, Contract, Expense, BusinessInsight, PricingSuggestion } from './types';
 import { ProjectStatus, InvoiceStatus, Currency } from './types';
 import { dataManager, type AppData } from './utils/dataManager';
 import Dashboard from './components/Dashboard';
@@ -125,6 +125,13 @@ interface AppContextType {
     updateProjectMilestone: (milestone: ProjectMilestone) => void;
     deleteProjectMilestone: (milestoneId: string) => void;
 
+    // Expense Management
+    expenses: Expense[];
+    addExpense: (expense: Omit<Expense, 'id'>) => void;
+    updateExpense: (expense: Expense) => void;
+    deleteExpense: (expenseId: string) => void;
+    // Consider adding functions for receipt uploads, categorization, status updates, etc.
+
     // Advanced Reporting and Analytics
     getProjectAnalytics: (projectId: string) => any; // Placeholder for analytics data
     getPhaseAnalytics: (phaseId: string) => PhaseAnalytics | null; // Placeholder for phase analytics data
@@ -133,7 +140,7 @@ interface AppContextType {
 
     // Enhanced AI Assistant Methods
     addContract?: (contract: Omit<Contract, 'id'>) => void;
-    addExpense?: (expense: Omit<Expense, 'id'>) => void;
+    // addExpense?: (expense: Omit<Expense, 'id'>) => void; // Already defined above
     generateBusinessInsights?: (insights: BusinessInsight[]) => void;
     generatePricingSuggestion?: (suggestion: PricingSuggestion) => void;
 }
@@ -166,6 +173,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const [projectTemplates, setProjectTemplates] = useState<ProjectTemplate[]>([]);
     const [clientNotes, setClientNotes] = useState<ClientNote[]>([]);
     const [projectMilestones, setProjectMilestones] = useState<ProjectMilestone[]>([]);
+    const [expenses, setExpenses] = useLocalStorage<Expense[]>('expenses', []); // State for expenses
 
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'success'>('idle');
     const [lastSyncTime, setLastSyncTime] = useState<number | null>(null);
@@ -280,6 +288,15 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const updateProjectMilestone = (updatedMilestone: ProjectMilestone) => setProjectMilestones(prev => prev.map(m => m.id === updatedMilestone.id ? updatedMilestone : m));
     const deleteProjectMilestone = (milestoneId: string) => setProjectMilestones(prev => prev.filter(m => m.id !== milestoneId));
 
+    // Expense Management Methods
+    const addExpense = (expense: Omit<Expense, 'id'>) => {
+        const newExpense: Expense = { ...expense, id: generateId() };
+        setExpenses(prev => [...prev, newExpense]);
+    };
+    const updateExpense = (updatedExpense: Expense) => setExpenses(prev => prev.map(e => e.id === updatedExpense.id ? updatedExpense : e));
+    const deleteExpense = (expenseId: string) => setExpenses(prev => prev.filter(e => e.id !== expenseId));
+    // Placeholder for receipt upload, categorization, status updates etc.
+
     // Advanced Reporting and Analytics Methods
     const getProjectAnalytics = (projectId: string) => {
         const project = projects.find(p => p.id === projectId);
@@ -336,10 +353,11 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         console.log('Contract saved:', contract);
     };
 
-    const addExpense = (expense: Omit<Expense, 'id'>) => {
-        // This would be implemented to save expenses to state/storage
-        console.log('Expense saved:', expense);
-    };
+    // addExpense is now defined above
+    // const addExpense = (expense: Omit<Expense, 'id'>) => {
+    //     // This would be implemented to save expenses to state/storage
+    //     console.log('Expense saved:', expense);
+    // };
 
     const generateBusinessInsights = (insights: BusinessInsight[]) => {
         // This would be implemented to save insights to state/storage
@@ -377,6 +395,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setProjectTemplates(result.data.projectTemplates || []);
                 setClientNotes(result.data.clientNotes || []);
                 setProjectMilestones(result.data.projectMilestones || []);
+                setExpenses(result.data.expenses || []); // Import expenses
             } else {
                 // Merge mode - combine data intelligently
                 setClients(prev => {
@@ -438,6 +457,11 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                     const newMilestones = result.data!.projectMilestones.filter(m => !existingIds.has(m.id));
                     return [...prev, ...newMilestones];
                 });
+                setExpenses(prev => { // Merge expenses
+                    const existingIds = new Set(prev.map(e => e.id));
+                    const newExpenses = result.data!.expenses.filter(e => !existingIds.has(e.id));
+                    return [...prev, ...newExpenses];
+                });
             }
         }
 
@@ -463,6 +487,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setProjectTemplates(recoveredData.projectTemplates || []);
                 setClientNotes(recoveredData.clientNotes || []);
                 setProjectMilestones(recoveredData.projectMilestones || []);
+                setExpenses(recoveredData.expenses || []); // Recover expenses
                 setSyncStatus('success');
                 setLastSyncTime(Date.now());
                 return true;
@@ -498,6 +523,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 setProjectTemplates(syncedData.projectTemplates || []);
                 setClientNotes(syncedData.clientNotes || []);
                 setProjectMilestones(syncedData.projectMilestones || []);
+                setExpenses(syncedData.expenses || []); // Sync expenses
             }
 
             setSyncStatus('success');
@@ -527,7 +553,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
         const debounceTimer = setTimeout(autoSync, 2000); // Debounce for 2 seconds
         return () => clearTimeout(debounceTimer);
-    }, [clients, projects, projectPhases, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates]);
+    }, [clients, projects, projectPhases, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates, expenses]); // Added expenses to dependency array
 
     // Initial sync on app load
     useEffect(() => {
@@ -559,13 +585,19 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         addProjectMilestone,
         updateProjectMilestone,
         deleteProjectMilestone,
+        // Add expense context values
+        expenses,
+        addExpense,
+        updateExpense,
+        deleteExpense,
+        // Advanced Reporting and Analytics
         getProjectAnalytics,
         getPhaseAnalytics,
         generateTimeReport,
         generateRevenueReport,
         // Enhanced AI Assistant methods
         addContract,
-        addExpense,
+        // addExpense, // Already defined above
         generateBusinessInsights,
         generatePricingSuggestion,
     };
@@ -646,6 +678,8 @@ export default function App() {
                 return <TimeEntries />;
             case 'invoicing':
                 return <Invoicing />;
+            case 'expenses': // New case for Expenses component
+                return <div>Expenses Component Placeholder</div>; // Replace with actual Expenses component import and rendering
             case 'ai-assistant':
                 return <AIAssistant />;
             case 'reports':
@@ -703,6 +737,8 @@ export default function App() {
                             <NavLink activeView={view} targetView="clients-projects" setView={setView} setSidebarOpen={setSidebarOpen} icon={<FolderIcon />}>Clients & Projects</NavLink>
                             <NavLink activeView={view} targetView="time-entries" setView={setView} setSidebarOpen={setSidebarOpen} icon={<TimeIcon />}>Time Entries</NavLink>
                             <NavLink activeView={view} targetView="invoicing" setView={setView} setSidebarOpen={setSidebarOpen} icon={<InvoiceIcon />}>Invoicing</NavLink>
+                            {/* New NavLink for Expenses */}
+                            <NavLink activeView={view} targetView="expenses" setView={setView} setSidebarOpen={setSidebarOpen} icon={<FolderIcon />}>Expenses</NavLink> {/* Reusing FolderIcon as a placeholder */}
                             <NavLink activeView={view} targetView="ai-assistant" setView={setView} setSidebarOpen={setSidebarOpen} icon={<SparklesIcon />}>AI Assistant</NavLink>
 
                             <div className={`!mt-auto pt-2 ${darkMode ? 'border-slate-700' : 'border-slate-200'} border-t`}>

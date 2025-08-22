@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAppContext } from '../App';
-import type { Invoice, Client, TimeEntry, Project, Payment, RecurringInvoiceTemplate, Currency, ExchangeRate } from '../types';
+import type { Invoice, Client, TimeEntry, Project, Payment, RecurringInvoiceTemplate, Currency, ExchangeRate, Expense } from '../types';
 import { InvoiceStatus, PaymentStatus, RecurringFrequency } from '../types';
 import { Button, Modal, Select, Label, Card, CardHeader, CardTitle, CardContent, Input } from './ui/index';
 import jsPDF from 'jspdf';
@@ -659,9 +659,10 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
 
 // Enhanced Invoice Creator
 const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id' | 'invoiceNumber'>) => void; onCancel: () => void; }) => {
-    const { clients, projects, timeEntries } = useAppContext();
+    const { clients, projects, timeEntries, expenses } = useAppContext();
     const [selectedClientId, setSelectedClientId] = useState<string>('');
     const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
+    const [selectedExpenseIds, setSelectedExpenseIds] = useState<string[]>([]);
     const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
     const [dueDate, setDueDate] = useState(() => {
         const date = new Date();
@@ -679,21 +680,38 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
         return timeEntries.filter(t => clientProjectIds.includes(t.projectId) && t.isBillable && !t.invoiceId);
     }, [selectedClientId, projects, timeEntries]);
 
+    const unbilledExpenses = useMemo(() => {
+        if (!selectedClientId) return [];
+        return expenses.filter(exp => exp.clientId === selectedClientId && exp.status === 'approved' && !exp.invoiceId);
+    }, [selectedClientId, expenses]);
+
     const handleToggleEntry = (entryId: string) => {
         setSelectedEntryIds(prev => prev.includes(entryId) ? prev.filter(id => id !== entryId) : [...prev, entryId]);
     };
 
-    const handleSelectAll = () => {
+    const handleToggleExpense = (expenseId: string) => {
+        setSelectedExpenseIds(prev => prev.includes(expenseId) ? prev.filter(id => id !== expenseId) : [...prev, expenseId]);
+    };
+
+    const handleSelectAllEntries = () => {
         setSelectedEntryIds(unbilledEntries.map(e => e.id));
     };
 
-    const handleDeselectAll = () => {
+    const handleDeselectAllEntries = () => {
         setSelectedEntryIds([]);
     };
 
+    const handleSelectAllExpenses = () => {
+        setSelectedExpenseIds(unbilledExpenses.map(e => e.id));
+    };
+
+    const handleDeselectAllExpenses = () => {
+        setSelectedExpenseIds([]);
+    };
+
     const handleSubmit = () => {
-        if (!isManualInvoice && selectedEntryIds.length === 0) {
-            alert('Please select at least one time entry to include in the invoice.');
+        if (!isManualInvoice && selectedEntryIds.length === 0 && selectedExpenseIds.length === 0) {
+            alert('Please select at least one time entry or expense to include in the invoice.');
             return;
         }
 
@@ -702,17 +720,23 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             return;
         }
 
-        // Calculate total amount for time-based invoices
         let calculatedTotal = 0;
         let invoiceCurrency: Currency = 'USD' as Currency;
 
-        if (!isManualInvoice && selectedEntryIds.length > 0) {
+        if (!isManualInvoice) {
             selectedEntryIds.forEach(id => {
                 const entry = unbilledEntries.find(e => e.id === id);
                 const project = entry ? projects.find(p => p.id === entry.projectId) : null;
                 if (entry && project) {
                     calculatedTotal += entry.hours * project.hourlyRate;
-                    invoiceCurrency = project.currency; // Use the first project's currency
+                    invoiceCurrency = project.currency;
+                }
+            });
+            selectedExpenseIds.forEach(id => {
+                const expense = unbilledExpenses.find(exp => exp.id === id);
+                if (expense) {
+                    calculatedTotal += expense.amount;
+                    invoiceCurrency = expense.currency;
                 }
             });
         }
@@ -723,7 +747,8 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             dueDate,
             status: InvoiceStatus.Draft,
             paymentStatus: PaymentStatus.Unpaid,
-            timeEntryIds: isManualInvoice ? [] : selectedEntryIds,
+            timeEntryIds: selectedEntryIds,
+            expenseIds: selectedExpenseIds,
             totalAmount: isManualInvoice ? parseFloat(manualAmount) : calculatedTotal,
             currency: isManualInvoice ? manualCurrency : invoiceCurrency,
             paidAmount: 0,
@@ -746,8 +771,14 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
                 totals[project.currency] = (totals[project.currency] || 0) + amount;
             }
         });
+        selectedExpenseIds.forEach(id => {
+            const expense = unbilledExpenses.find(exp => exp.id === id);
+            if (expense) {
+                totals[expense.currency] = (totals[expense.currency] || 0) + expense.amount;
+            }
+        });
         return Object.entries(totals).map(([curr, amt]) => formatCurrency(amt, curr)).join(' + ');
-    }, [selectedEntryIds, unbilledEntries, projects, isManualInvoice, manualAmount, manualCurrency]);
+    }, [selectedEntryIds, selectedExpenseIds, unbilledEntries, unbilledExpenses, projects, isManualInvoice, manualAmount, manualCurrency]);
 
     return (
         <div className="space-y-6">
@@ -819,7 +850,7 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
                     ) : (
                         <div>
                             <h4 className="font-medium text-slate-800 mb-2">2. Select Unbilled Time Entries</h4>
-                            <div className="max-h-60 overflow-y-auto border rounded-md">
+                            <div className="max-h-60 overflow-y-auto border rounded-md mb-4">
                                 {unbilledEntries.length > 0 ? (
                                     unbilledEntries.map(entry => {
                                         const project = projects.find(p => p.id === entry.projectId);
@@ -838,9 +869,31 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
                                     )})
                                 ) : <p className="p-4 text-center text-slate-500">No unbilled entries for this client.</p>}
                             </div>
-                            {unbilledEntries.length > 0 && <div className="flex space-x-2 mt-2">
-                                <Button type="button" variant="secondary" size="sm" onClick={handleSelectAll}>Select All</Button>
-                                <Button type="button" variant="secondary" size="sm" onClick={handleDeselectAll}>Deselect All</Button>
+                            {unbilledEntries.length > 0 && <div className="flex space-x-2 mt-2 mb-4">
+                                <Button type="button" variant="secondary" size="sm" onClick={handleSelectAllEntries}>Select All</Button>
+                                <Button type="button" variant="secondary" size="sm" onClick={handleDeselectAllEntries}>Deselect All</Button>
+                            </div>}
+
+                            <h4 className="font-medium text-slate-800 mb-2">3. Select Unbilled Expenses</h4>
+                            <div className="max-h-60 overflow-y-auto border rounded-md mb-4">
+                                {unbilledExpenses.length > 0 ? (
+                                    unbilledExpenses.map(expense => (
+                                        <div key={expense.id} className="flex items-center p-3 border-b last:border-0">
+                                            <input type="checkbox" checked={selectedExpenseIds.includes(expense.id)} onChange={() => handleToggleExpense(expense.id)} className="h-4 w-4 mr-3 rounded" />
+                                            <div className="flex-1">
+                                                <p>{expense.description} - {expense.vendor}</p>
+                                                <p className="text-sm text-slate-500">{expense.category}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-medium">{formatCurrency(expense.amount, expense.currency)}</p>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : <p className="p-4 text-center text-slate-500">No unbilled expenses for this client.</p>}
+                            </div>
+                             {unbilledExpenses.length > 0 && <div className="flex space-x-2 mt-2">
+                                <Button type="button" variant="secondary" size="sm" onClick={handleSelectAllExpenses}>Select All</Button>
+                                <Button type="button" variant="secondary" size="sm" onClick={handleDeselectAllExpenses}>Deselect All</Button>
                             </div>}
                         </div>
                     )}
@@ -848,7 +901,7 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             )}
 
              <div>
-                <h4 className="font-medium text-slate-800 mb-2">3. Set Invoice Dates</h4>
+                <h4 className="font-medium text-slate-800 mb-2">4. Set Invoice Dates</h4>
                  <div className="grid grid-cols-2 gap-4">
                     <div>
                         <Label htmlFor="issueDate">Issue Date</Label>
@@ -870,10 +923,10 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
 
             <div className="flex justify-end space-x-2">
                 <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
-                <Button 
-                    type="button" 
-                    onClick={handleSubmit} 
-                    disabled={!selectedClientId || (!isManualInvoice && selectedEntryIds.length === 0) || (isManualInvoice && !manualAmount)}
+                <Button
+                    type="button"
+                    onClick={handleSubmit}
+                    disabled={!selectedClientId || (!isManualInvoice && selectedEntryIds.length === 0 && selectedExpenseIds.length === 0) || (isManualInvoice && !manualAmount)}
                 >
                     Create Invoice
                 </Button>
