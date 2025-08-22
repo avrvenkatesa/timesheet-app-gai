@@ -297,18 +297,25 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         const phase = projectPhases.find(p => p.id === phaseId);
         if (!phase) return null;
 
-        const phaseTimeEntries = timeEntries.filter(entry => entry.phaseId === phaseId && entry.isBillable);
+        const phaseTimeEntries = timeEntries.filter(entry => entry.phaseId === phaseId);
+        const billableEntries = phaseTimeEntries.filter(entry => entry.isBillable);
         const totalHours = phaseTimeEntries.reduce((sum, entry) => sum + entry.hours, 0);
-        const totalRevenue = phaseTimeEntries.reduce((sum, entry) => {
+        const billableHours = billableEntries.reduce((sum, entry) => sum + entry.hours, 0);
+        const totalRevenue = billableEntries.reduce((sum, entry) => {
             const project = projects.find(p => p.id === entry.projectId);
             return sum + (entry.hours * (project?.hourlyRate || 0));
         }, 0);
 
+        const completionPercentage = phase.estimatedHours > 0 ? (totalHours / phase.estimatedHours) * 100 : 0;
+
         return {
-            ...phase,
-            totalHours,
-            totalRevenue: convertCurrency(totalRevenue, Currency.USD, Currency.USD), // Assuming project currency is converted to USD if needed elsewhere
-            numberOfTimeEntries: phaseTimeEntries.length,
+            phaseId: phase.id,
+            phaseName: phase.name,
+            estimatedHours: phase.estimatedHours,
+            actualHours: totalHours,
+            billableHours: billableHours,
+            completionPercentage: Math.min(completionPercentage, 100),
+            revenue: totalRevenue
         };
     };
 

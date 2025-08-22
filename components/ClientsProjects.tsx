@@ -435,6 +435,9 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
                         <div className="space-y-3">
                             {projectPhasesList.map((phase, index) => {
                                 const analytics = getPhaseAnalytics(phase.id);
+                                const actualHours = analytics?.totalHours || 0;
+                                const completionPercentage = phase.estimatedHours > 0 ? (actualHours / phase.estimatedHours) * 100 : 0;
+                                
                                 return (
                                     <div key={phase.id} className="border border-slate-200 rounded-lg p-4">
                                         <div className="flex justify-between items-start mb-2">
@@ -453,30 +456,28 @@ const ProjectPhasesModal = ({ project, isOpen, onClose }: { project: Project; is
                                             </Button>
                                         </div>
                                         
-                                        {analytics && (
-                                            <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
-                                                <div>
-                                                    <span className="text-slate-500">Estimated:</span>
-                                                    <p className="font-medium">{phase.estimatedHours}h</p>
-                                                </div>
-                                                <div>
-                                                    <span className="text-slate-500">Actual:</span>
-                                                    <p className="font-medium">{analytics.actualHours.toFixed(1)}h</p>
-                                                </div>
-                                                <div>
-                                                    <span className="text-slate-500">Progress:</span>
-                                                    <div className="flex items-center">
-                                                        <div className="w-16 bg-slate-200 rounded-full h-2 mr-2">
-                                                            <div
-                                                                className="bg-blue-600 h-2 rounded-full"
-                                                                style={{ width: `${Math.min(analytics.completionPercentage, 100)}%` }}
-                                                            ></div>
-                                                        </div>
-                                                        <span className="text-xs">{analytics.completionPercentage.toFixed(0)}%</span>
+                                        <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
+                                            <div>
+                                                <span className="text-slate-500">Estimated:</span>
+                                                <p className="font-medium">{phase.estimatedHours}h</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-500">Actual:</span>
+                                                <p className="font-medium">{actualHours.toFixed(1)}h</p>
+                                            </div>
+                                            <div>
+                                                <span className="text-slate-500">Progress:</span>
+                                                <div className="flex items-center">
+                                                    <div className="w-16 bg-slate-200 rounded-full h-2 mr-2">
+                                                        <div
+                                                            className="bg-blue-600 h-2 rounded-full"
+                                                            style={{ width: `${Math.min(completionPercentage, 100)}%` }}
+                                                        ></div>
                                                     </div>
+                                                    <span className="text-xs">{completionPercentage.toFixed(0)}%</span>
                                                 </div>
                                             </div>
-                                        )}
+                                        </div>
                                     </div>
                                 );
                             })}
