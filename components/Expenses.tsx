@@ -5,6 +5,34 @@ import type { Expense, ExpenseTemplate, ExpenseReport, ExpenseReceipt, Project, 
 import { ExpenseStatus, ExpenseCategory, Currency } from '../types';
 import { Button, Modal, Select, Label, Card, CardHeader, CardTitle, CardContent, Input } from './ui/index';
 
+// Helper function for generating IDs
+const generateId = () => `id_${new Date().getTime()}_${Math.random().toString(36).substring(2, 9)}`;
+
+// Helper function for local storage (already exists in App.tsx)
+function useLocalStorage<T>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
+    const [storedValue, setStoredValue] = useState<T>(() => {
+        try {
+            const item = window.localStorage.getItem(key);
+            return item ? JSON.parse(item) : initialValue;
+        } catch (error) {
+            console.error(error);
+            return initialValue;
+        }
+    });
+
+    const setValue: React.Dispatch<React.SetStateAction<T>> = (value) => {
+        try {
+            const valueToStore = value instanceof Function ? value(storedValue) : value;
+            setStoredValue(valueToStore);
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    return [storedValue, setValue];
+}
+
 const formatCurrency = (amount: number, currency: string) => {
     try {
         return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
@@ -512,6 +540,239 @@ const ExpenseAnalytics = () => {
     );
 };
 
+// Expense Report Creation Component
+const ExpenseReportForm = ({ onSave, onCancel }: {
+    onSave: (data: Omit<ExpenseReport, 'id'>) => void;
+    onCancel: () => void;
+}) => {
+    const { projects, clients, expenses } = useAppContext();
+    const [formData, setFormData] = useState({
+        title: '',
+        startDate: '',
+        endDate: '',
+        projectId: '',
+        clientId: '',
+        notes: '',
+        selectedExpenseIds: [] as string[]
+    });
+
+    const availableExpenses = useMemo(() => {
+        return expenses.filter(expense => {
+            let matches = true;
+            
+            if (formData.startDate && expense.date < formData.startDate) matches = false;
+            if (formData.endDate && expense.date > formData.endDate) matches = false;
+            if (formData.projectId && expense.projectId !== formData.projectId) matches = false;
+            if (formData.clientId) {
+                const project = projects.find(p => p.id === expense.projectId);
+                if (!project || project.clientId !== formData.clientId) matches = false;
+            }
+            
+            return matches && expense.status === ExpenseStatus.Approved;
+        });
+    }, [expenses, formData, projects]);
+
+    const totalAmount = useMemo(() => {
+        return formData.selectedExpenseIds.reduce((sum, expenseId) => {
+            const expense = expenses.find(e => e.id === expenseId);
+            return sum + (expense?.amount || 0);
+        }, 0);
+    }, [formData.selectedExpenseIds, expenses]);
+
+    const handleExpenseToggle = (expenseId: string) => {
+        setFormData(prev => ({
+            ...prev,
+            selectedExpenseIds: prev.selectedExpenseIds.includes(expenseId)
+                ? prev.selectedExpenseIds.filter(id => id !== expenseId)
+                : [...prev.selectedExpenseIds, expenseId]
+        }));
+    };
+
+    const handleSubmit = () => {
+        if (!formData.title || !formData.startDate || !formData.endDate || formData.selectedExpenseIds.length === 0) {
+            alert('Please fill in all required fields and select at least one expense');
+            return;
+        }
+
+        const reportData = {
+            title: formData.title,
+            startDate: formData.startDate,
+            endDate: formData.endDate,
+            projectId: formData.projectId || undefined,
+            clientId: formData.clientId || undefined,
+            expenseIds: formData.selectedExpenseIds,
+            totalAmount,
+            currency: Currency.USD, // Default currency, could be made configurable
+            status: 'draft' as const,
+            notes: formData.notes || undefined
+        };
+
+        onSave(reportData);
+    };
+
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="reportTitle">Report Title *</Label>
+                    <Input
+                        id="reportTitle"
+                        value={formData.title}
+                        onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+                        placeholder="e.g., Q1 2024 Project Expenses"
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="reportStatus">Status</Label>
+                    <Select disabled>
+                        <option value="draft">Draft</option>
+                    </Select>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="reportStartDate">Start Date *</Label>
+                    <Input
+                        type="date"
+                        id="reportStartDate"
+                        value={formData.startDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="reportEndDate">End Date *</Label>
+                    <Input
+                        type="date"
+                        id="reportEndDate"
+                        value={formData.endDate}
+                        onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                    />
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="reportClient">Filter by Client (Optional)</Label>
+                    <Select
+                        id="reportClient"
+                        value={formData.clientId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, clientId: e.target.value, projectId: '' }))}
+                    >
+                        <option value="">All Clients</option>
+                        {clients.map(client => (
+                            <option key={client.id} value={client.id}>{client.name}</option>
+                        ))}
+                    </Select>
+                </div>
+                <div>
+                    <Label htmlFor="reportProject">Filter by Project (Optional)</Label>
+                    <Select
+                        id="reportProject"
+                        value={formData.projectId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, projectId: e.target.value }))}
+                    >
+                        <option value="">All Projects</option>
+                        {projects
+                            .filter(project => !formData.clientId || project.clientId === formData.clientId)
+                            .map(project => (
+                                <option key={project.id} value={project.id}>{project.name}</option>
+                            ))}
+                    </Select>
+                </div>
+            </div>
+
+            <div>
+                <Label htmlFor="reportNotes">Notes</Label>
+                <Input
+                    id="reportNotes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Additional notes for this report..."
+                />
+            </div>
+
+            <div>
+                <h3 className="text-lg font-medium mb-4">
+                    Select Expenses ({availableExpenses.length} available, {formData.selectedExpenseIds.length} selected)
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                    Only approved expenses within the date range are shown.
+                </p>
+                
+                {availableExpenses.length === 0 ? (
+                    <p className="text-gray-500 text-center py-8">
+                        No approved expenses found for the selected criteria.
+                    </p>
+                ) : (
+                    <div className="border rounded-lg max-h-96 overflow-y-auto">
+                        <table className="w-full text-sm">
+                            <thead className="bg-gray-50 sticky top-0">
+                                <tr>
+                                    <th className="px-4 py-2 text-left">
+                                        <input
+                                            type="checkbox"
+                                            checked={formData.selectedExpenseIds.length === availableExpenses.length}
+                                            onChange={(e) => {
+                                                setFormData(prev => ({
+                                                    ...prev,
+                                                    selectedExpenseIds: e.target.checked 
+                                                        ? availableExpenses.map(exp => exp.id)
+                                                        : []
+                                                }));
+                                            }}
+                                        />
+                                    </th>
+                                    <th className="px-4 py-2 text-left">Date</th>
+                                    <th className="px-4 py-2 text-left">Description</th>
+                                    <th className="px-4 py-2 text-left">Amount</th>
+                                    <th className="px-4 py-2 text-left">Category</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {availableExpenses.map(expense => (
+                                    <tr key={expense.id} className="border-t hover:bg-gray-50">
+                                        <td className="px-4 py-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={formData.selectedExpenseIds.includes(expense.id)}
+                                                onChange={() => handleExpenseToggle(expense.id)}
+                                            />
+                                        </td>
+                                        <td className="px-4 py-2">{formatDate(expense.date)}</td>
+                                        <td className="px-4 py-2">{expense.description}</td>
+                                        <td className="px-4 py-2">{formatCurrency(expense.amount, expense.currency)}</td>
+                                        <td className="px-4 py-2">{expense.category}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {formData.selectedExpenseIds.length > 0 && (
+                <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-blue-900">Report Summary</h4>
+                    <p className="text-blue-800">
+                        Total Expenses: {formData.selectedExpenseIds.length}
+                    </p>
+                    <p className="text-blue-800 text-lg font-semibold">
+                        Total Amount: {formatCurrency(totalAmount, Currency.USD)}
+                    </p>
+                </div>
+            )}
+
+            <div className="flex justify-end space-x-2">
+                <Button type="button" variant="secondary" onClick={onCancel}>Cancel</Button>
+                <Button type="button" onClick={handleSubmit}>
+                    Create Expense Report
+                </Button>
+            </div>
+        </div>
+    );
+};
+
 // Main Expenses Component
 export default function Expenses() {
     const { 
@@ -521,7 +782,8 @@ export default function Expenses() {
         deleteExpense, 
         projects, 
         projectPhases,
-        exportExpenseData 
+        exportExpenseData,
+        clients 
     } = useAppContext();
     
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -530,6 +792,8 @@ export default function Expenses() {
     const [statusFilter, setStatusFilter] = useState<ExpenseStatus | ''>('');
     const [projectFilter, setProjectFilter] = useState('');
     const [isExporting, setIsExporting] = useState(false);
+    const [isCreateReportModalOpen, setIsCreateReportModalOpen] = useState(false);
+    const [expenseReports, setExpenseReports] = useLocalStorage<ExpenseReport[]>('expenseReports', []);
 
     const filteredExpenses = useMemo(() => {
         return expenses.filter(expense => {
@@ -570,6 +834,55 @@ export default function Expenses() {
         }
     };
 
+    const handleSaveExpenseReport = (reportData: Omit<ExpenseReport, 'id'>) => {
+        const newReport: ExpenseReport = {
+            ...reportData,
+            id: generateId()
+        };
+        setExpenseReports(prev => [...prev, newReport]);
+        setIsCreateReportModalOpen(false);
+        alert('Expense report created successfully!');
+    };
+
+    const handleDeleteExpenseReport = (reportId: string) => {
+        if (confirm('Are you sure you want to delete this expense report?')) {
+            setExpenseReports(prev => prev.filter(r => r.id !== reportId));
+        }
+    };
+
+    const exportExpenseReport = (report: ExpenseReport) => {
+        const reportExpenses = expenses.filter(e => report.expenseIds.includes(e.id));
+        
+        const csvContent = [
+            ['Expense Report:', report.title],
+            ['Period:', `${report.startDate} to ${report.endDate}`],
+            ['Total Amount:', `$${report.totalAmount.toFixed(2)}`],
+            ['Status:', report.status],
+            [''],
+            ['Date', 'Description', 'Amount', 'Currency', 'Category', 'Project', 'Receipts'],
+            ...reportExpenses.map(expense => {
+                const project = projects.find(p => p.id === expense.projectId);
+                return [
+                    expense.date,
+                    expense.description,
+                    expense.amount.toString(),
+                    expense.currency,
+                    expense.category,
+                    project?.name || 'No Project',
+                    expense.receipts.length.toString()
+                ];
+            })
+        ].map(row => row.join(',')).join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `expense-report-${report.title.replace(/\s+/g, '-')}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const getStatusColor = (status: ExpenseStatus) => {
         switch (status) {
             case ExpenseStatus.Draft: return 'bg-gray-100 text-gray-800';
@@ -592,6 +905,12 @@ export default function Expenses() {
                         disabled={isExporting}
                     >
                         Export CSV
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setIsCreateReportModalOpen(true)}
+                    >
+                        Create Report
                     </Button>
                     <Button onClick={() => setIsCreateModalOpen(true)}>
                         Add Expense
@@ -635,6 +954,62 @@ export default function Expenses() {
 
             {/* Expense Analytics */}
             <ExpenseAnalytics />
+
+            {/* Expense Reports */}
+            {expenseReports.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Expense Reports</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {expenseReports.map(report => (
+                                <div key={report.id} className="border rounded-lg p-4">
+                                    <div className="flex justify-between items-start">
+                                        <div>
+                                            <h3 className="font-semibold text-lg">{report.title}</h3>
+                                            <p className="text-sm text-gray-600">
+                                                {formatDate(report.startDate)} - {formatDate(report.endDate)}
+                                            </p>
+                                            <p className="text-sm text-gray-600">
+                                                {report.expenseIds.length} expenses • Total: {formatCurrency(report.totalAmount, report.currency)}
+                                            </p>
+                                            <span className={`inline-block px-2 py-1 text-xs font-semibold rounded-full mt-2 ${
+                                                report.status === 'approved' ? 'bg-green-100 text-green-800' :
+                                                report.status === 'submitted' ? 'bg-blue-100 text-blue-800' :
+                                                report.status === 'reimbursed' ? 'bg-purple-100 text-purple-800' :
+                                                'bg-gray-100 text-gray-800'
+                                            }`}>
+                                                {report.status}
+                                            </span>
+                                            {report.notes && (
+                                                <p className="text-sm text-gray-600 mt-2">{report.notes}</p>
+                                            )}
+                                        </div>
+                                        <div className="flex space-x-2">
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => exportExpenseReport(report)}
+                                            >
+                                                Export
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => handleDeleteExpenseReport(report.id)}
+                                                className="text-red-600 hover:text-red-800"
+                                            >
+                                                Delete
+                                            </Button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Expenses List */}
             <Card>
@@ -819,6 +1194,18 @@ export default function Expenses() {
                     </div>
                 </Modal>
             )}
+
+            {/* Create Expense Report Modal */}
+            <Modal 
+                isOpen={isCreateReportModalOpen} 
+                onClose={() => setIsCreateReportModalOpen(false)}
+                title="Create Expense Report"
+            >
+                <ExpenseReportForm
+                    onSave={handleSaveExpenseReport}
+                    onCancel={() => setIsCreateReportModalOpen(false)}
+                />
+            </Modal>
         </div>
     );
 }
