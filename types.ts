@@ -271,7 +271,7 @@ export interface ExpenseReceipt {
   fileType: string;
   fileSize: number;
   uploadDate: string;
-  url?: string;
+  url: string; // Object Storage path
   ocrData?: ExpenseOCRData;
 }
 

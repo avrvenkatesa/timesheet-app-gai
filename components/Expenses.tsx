@@ -276,8 +276,9 @@ const ExpenseForm = ({ expense, onSave, onCancel }: {
 
 // Receipt Management Component
 const ReceiptManager = ({ expense }: { expense: Expense }) => {
-    const { uploadReceipt, deleteReceipt } = useAppContext();
+    const { uploadReceipt, deleteReceipt, getReceiptUrl } = useAppContext();
     const [isUploading, setIsUploading] = useState(false);
+    const [loadingReceipts, setLoadingReceipts] = useState<Set<string>>(new Set());
 
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -343,7 +344,15 @@ const ReceiptManager = ({ expense }: { expense: Expense }) => {
                                 <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => deleteReceipt(receipt.id)}
+                                    onClick={async () => {
+                                        if (confirm('Are you sure you want to delete this receipt?')) {
+                                            try {
+                                                await deleteReceipt(receipt.id);
+                                            } catch (error) {
+                                                alert('Failed to delete receipt. Please try again.');
+                                            }
+                                        }
+                                    }}
                                     className="text-red-600 hover:text-red-800"
                                 >
                                     Delete
@@ -368,16 +377,29 @@ const ReceiptManager = ({ expense }: { expense: Expense }) => {
                                 )}
                             </div>
                             
-                            {receipt.url && (
-                                <Button
-                                    variant="secondary"
-                                    size="sm"
-                                    onClick={() => window.open(receipt.url, '_blank')}
-                                    className="w-full mt-2"
-                                >
-                                    View
-                                </Button>
-                            )}
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={async () => {
+                                    setLoadingReceipts(prev => new Set(prev).add(receipt.id));
+                                    try {
+                                        const url = await getReceiptUrl(receipt.url);
+                                        window.open(url, '_blank');
+                                    } catch (error) {
+                                        alert('Failed to load receipt. Please try again.');
+                                    } finally {
+                                        setLoadingReceipts(prev => {
+                                            const newSet = new Set(prev);
+                                            newSet.delete(receipt.id);
+                                            return newSet;
+                                        });
+                                    }
+                                }}
+                                disabled={loadingReceipts.has(receipt.id)}
+                                className="w-full mt-2"
+                            >
+                                {loadingReceipts.has(receipt.id) ? 'Loading...' : 'View'}
+                            </Button>
                         </div>
                     ))}
                 </div>

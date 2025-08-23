@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google/genai": "latest",
+    "@replit/object-storage": "^1.0.0",
     "@tailwindcss/typography": "^0.5.16",
     "@testing-library/jest-dom": "^6.8.0",
     "@testing-library/react": "^16.3.0",

@@ -132,7 +132,8 @@ interface AppContextType {
     updateExpense: (expense: Expense) => void;
     deleteExpense: (expenseId: string) => void;
     uploadReceipt: (expenseId: string, file: File) => Promise<void>;
-    deleteReceipt: (receiptId: string) => void;
+    deleteReceipt: (receiptId: string) => Promise<void>;
+    getReceiptUrl: (receiptPath: string) => Promise<string>;
     getExpenseAnalytics: (projectId?: string, startDate?: string, endDate?: string) => any;
     exportExpenseData: (format: 'csv' | 'json' | 'pdf') => Promise<string>;
     expenseTemplates: any[];
@@ -360,15 +361,100 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
 
     // Additional expense-related methods that the Expenses component expects
     const uploadReceipt = async (expenseId: string, file: File) => {
-        // Mock implementation for receipt upload
-        console.log('Uploading receipt for expense:', expenseId, file.name);
-        // In a real app, this would upload to cloud storage and update the expense
+        try {
+            // Import Replit Object Storage client
+            const { Client } = await import('@replit/object-storage');
+            const client = new Client();
+            
+            // Generate unique filename
+            const timestamp = Date.now();
+            const fileExtension = file.name.split('.').pop();
+            const filename = `receipts/${expenseId}/${timestamp}_${file.name}`;
+            
+            // Convert file to buffer
+            const arrayBuffer = await file.arrayBuffer();
+            const buffer = new Uint8Array(arrayBuffer);
+            
+            // Upload to Object Storage
+            await client.uploadFromBytes(filename, buffer);
+            
+            // Create receipt record
+            const receipt = {
+                id: generateId(),
+                expenseId,
+                fileName: file.name,
+                fileType: file.type,
+                fileSize: file.size,
+                uploadDate: new Date().toISOString(),
+                url: filename, // Store the object storage path
+                ocrData: undefined // OCR processing can be added later
+            };
+            
+            // Update expense with new receipt
+            setExpenses(prev => prev.map(expense => 
+                expense.id === expenseId 
+                    ? { ...expense, receipts: [...expense.receipts, receipt] }
+                    : expense
+            ));
+            
+            console.log('Receipt uploaded successfully:', filename);
+        } catch (error) {
+            console.error('Receipt upload failed:', error);
+            throw new Error('Failed to upload receipt. Please try again.');
+        }
     };
 
-    const deleteReceipt = (receiptId: string) => {
-        // Mock implementation for receipt deletion
-        console.log('Deleting receipt:', receiptId);
-        // In a real app, this would remove the receipt from storage and update the expense
+    const deleteReceipt = async (receiptId: string) => {
+        try {
+            // Find the receipt to get its storage path
+            let receiptToDelete = null;
+            let expenseWithReceipt = null;
+            
+            for (const expense of expenses) {
+                const receipt = expense.receipts.find(r => r.id === receiptId);
+                if (receipt) {
+                    receiptToDelete = receipt;
+                    expenseWithReceipt = expense;
+                    break;
+                }
+            }
+            
+            if (!receiptToDelete || !expenseWithReceipt) {
+                throw new Error('Receipt not found');
+            }
+            
+            // Delete from Object Storage
+            const { Client } = await import('@replit/object-storage');
+            const client = new Client();
+            await client.delete(receiptToDelete.url);
+            
+            // Update expense to remove receipt
+            setExpenses(prev => prev.map(expense => 
+                expense.id === expenseWithReceipt.id 
+                    ? { ...expense, receipts: expense.receipts.filter(r => r.id !== receiptId) }
+                    : expense
+            ));
+            
+            console.log('Receipt deleted successfully:', receiptToDelete.fileName);
+        } catch (error) {
+            console.error('Receipt deletion failed:', error);
+            throw new Error('Failed to delete receipt. Please try again.');
+        }
+    };
+
+    const getReceiptUrl = async (receiptPath: string): Promise<string> => {
+        try {
+            const { Client } = await import('@replit/object-storage');
+            const client = new Client();
+            
+            // Download the file and create a blob URL
+            const fileData = await client.downloadAsBytes(receiptPath);
+            const blob = new Blob([fileData]);
+            return URL.createObjectURL(blob);
+        } catch (error) {
+            console.error('Failed to get receipt URL:', error);
+            throw new Error('Failed to load receipt');
+        }
     };
 
     const getExpenseAnalytics = (projectId?: string, startDate?: string, endDate?: string) => {
@@ -677,6 +763,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         deleteExpense,
         uploadReceipt,
         deleteReceipt,
+        getReceiptUrl,
         getExpenseAnalytics,
         exportExpenseData,
         expenseTemplates,
