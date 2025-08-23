@@ -851,36 +851,64 @@ export default function Expenses() {
     };
 
     const exportExpenseReport = (report: ExpenseReport) => {
-        const reportExpenses = expenses.filter(e => report.expenseIds.includes(e.id));
-        
-        const csvContent = [
-            ['Expense Report:', report.title],
-            ['Period:', `${report.startDate} to ${report.endDate}`],
-            ['Total Amount:', `$${report.totalAmount.toFixed(2)}`],
-            ['Status:', report.status],
-            [''],
-            ['Date', 'Description', 'Amount', 'Currency', 'Category', 'Project', 'Receipts'],
-            ...reportExpenses.map(expense => {
-                const project = projects.find(p => p.id === expense.projectId);
-                return [
-                    expense.date,
-                    expense.description,
-                    expense.amount.toString(),
-                    expense.currency,
-                    expense.category,
-                    project?.name || 'No Project',
-                    expense.receipts.length.toString()
-                ];
-            })
-        ].map(row => row.join(',')).join('\n');
+        try {
+            const reportExpenses = expenses.filter(e => report.expenseIds.includes(e.id));
+            
+            // Escape CSV values that contain commas, quotes, or newlines
+            const escapeCSV = (value: string) => {
+                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value;
+            };
 
-        const blob = new Blob([csvContent], { type: 'text/csv' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `expense-report-${report.title.replace(/\s+/g, '-')}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+            const csvRows = [
+                ['Expense Report:', escapeCSV(report.title)],
+                ['Period:', `${report.startDate} to ${report.endDate}`],
+                ['Total Amount:', `$${report.totalAmount.toFixed(2)}`],
+                ['Status:', report.status],
+                [''],
+                ['Date', 'Description', 'Amount', 'Currency', 'Category', 'Project', 'Receipts'],
+                ...reportExpenses.map(expense => {
+                    const project = projects.find(p => p.id === expense.projectId);
+                    return [
+                        expense.date,
+                        escapeCSV(expense.description),
+                        expense.amount.toFixed(2),
+                        expense.currency,
+                        expense.category,
+                        escapeCSV(project?.name || 'No Project'),
+                        expense.receipts.length.toString()
+                    ];
+                })
+            ];
+
+            const csvContent = csvRows.map(row => row.join(',')).join('\n');
+            
+            // Add BOM for better Excel compatibility
+            const BOM = '\uFEFF';
+            const blob = new Blob([BOM + csvContent], { 
+                type: 'text/csv;charset=utf-8;' 
+            });
+            
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `expense-report-${report.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}.csv`;
+            
+            // Ensure the link is added to DOM for some browsers
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            // Clean up
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+            
+            console.log('Expense report exported successfully');
+        } catch (error) {
+            console.error('Failed to export expense report:', error);
+            alert('Failed to export expense report. Please try again.');
+        }
     };
 
     const getStatusColor = (status: ExpenseStatus) => {
