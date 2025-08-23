@@ -1,30 +1,7 @@
-import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
-import { useAppContext, useTheme } from '../App';
+import React from 'react';
+import type { View } from '../types';
+import { useAppContext } from '../App';
 import { Card, CardHeader, CardTitle, CardContent } from './ui/index';
-
-// Custom icon components
-const DollarSignIcon = ({ className }: { className?: string }) => (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-    </svg>
-);
-
-const ClockIcon = ({ className }: { className?: string }) => (
-    <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-);
-
-// Define View type if not already defined in context or App.tsx
-type View = 'dashboard' | 'timesheet' | 'projects' | 'clients' | 'invoicing' | 'expenses';
-// Define InvoiceStatus enum if not already defined
-enum InvoiceStatus {
-    Draft = 'Draft',
-    Sent = 'Sent',
-    Paid = 'Paid',
-    Void = 'Void',
-    Overdue = 'Overdue'
-}
 
 const StatCard = ({ title, value, unit }: { title: string, value: string | number, unit: string }) => (
     <Card>
@@ -41,14 +18,7 @@ const StatCard = ({ title, value, unit }: { title: string, value: string | numbe
 
 
 export default function Dashboard({ setView }: { setView: React.Dispatch<React.SetStateAction<View>> }) {
-    const {
-        clients,
-        projects,
-        timeEntries,
-        invoices,
-        expenses, // Added expenses to context
-        billerInfo
-    } = useAppContext();
+    const { timeEntries, projects, clients } = useAppContext();
 
     const getTotalHours = (entries: typeof timeEntries) => {
         return entries.reduce((acc, entry) => acc + entry.hours, 0).toFixed(2);
@@ -111,31 +81,6 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
         return totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
     };
 
-    // Calculate recent activity and statistics
-    const recentTimeEntries = timeEntries.slice(0, 5);
-    const totalHoursThisMonth = timeEntries.filter(entry => {
-        const entryDate = new Date(entry.date);
-        return entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
-    }).reduce((sum, entry) => sum + entry.hours, 0);
-
-    const billableHoursThisMonth = timeEntries.filter(entry => {
-        const entryDate = new Date(entry.date);
-        return entry.isBillable && entryDate.getMonth() === now.getMonth() && entryDate.getFullYear() === now.getFullYear();
-    }).reduce((sum, entry) => sum + entry.hours, 0);
-
-    const totalRevenue = invoices.reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-    const pendingRevenue = invoices.filter(inv => inv.status !== InvoiceStatus.Paid).reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-
-    // Expense calculations
-    const totalExpensesThisMonth = expenses.filter(expense => {
-        const expenseDate = new Date(expense.date);
-        return expenseDate.getMonth() === now.getMonth() && expenseDate.getFullYear() === now.getFullYear();
-    }).reduce((sum, expense) => sum + expense.amount, 0);
-
-    const pendingReimbursements = expenses.filter(expense =>
-        expense.status === 'Submitted' || expense.status === 'Approved'
-    ).reduce((sum, expense) => sum + expense.amount, 0);
-
     const getMonthlyRevenue = () => {
         const billableEntries = thisMonthEntries.filter(e => e.isBillable);
         let totalRevenue = 0;
@@ -153,8 +98,8 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
     return (
         <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-800 dark:text-slate-200 transition-colors duration-200">Dashboard</h1>
-                <div className="mt-3 sm:mt-0 text-sm text-slate-600 dark:text-slate-400">
+                <h1 className="text-2xl sm:text-3xl font-bold text-slate-800">Dashboard</h1>
+                <div className="mt-3 sm:mt-0 text-sm text-slate-600">
                     Last updated: {new Date().toLocaleString()}
                 </div>
             </div>
@@ -165,66 +110,6 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
                 <StatCard title="Monthly Revenue" value={`$${getMonthlyRevenue().toFixed(0)}`} unit="" />
                 <StatCard title="Total Unbilled" value={getUnbilledAmount() || '$0.00'} unit="" />
                 <StatCard title="Project Completion" value={`${getProjectCompletionRate().toFixed(1)}%`} unit="" />
-
-                <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setView('invoicing')}>
-                        <CardContent className="p-6">
-                            <div className="flex items-center">
-                                <div className="p-2 rounded-lg bg-green-100">
-                                    <DollarSignIcon className="h-6 w-6 text-green-600" />
-                                </div>
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Total Revenue</p>
-                                    <p className="text-2xl font-bold text-gray-900">${totalRevenue.toFixed(2)}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setView('invoicing')}>
-                        <CardContent className="p-6">
-                            <div className="flex items-center">
-                                <div className="p-2 rounded-lg bg-yellow-100">
-                                    <ClockIcon className="h-6 w-6 text-yellow-600" />
-                                </div>
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Pending Revenue</p>
-                                    <p className="text-2xl font-bold text-gray-900">${pendingRevenue.toFixed(2)}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setView('expenses')}>
-                        <CardContent className="p-6">
-                            <div className="flex items-center">
-                                <div className="p-2 rounded-lg bg-red-100">
-                                    <svg className="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
-                                    </svg>
-                                </div>
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Monthly Expenses</p>
-                                    <p className="text-2xl font-bold text-gray-900">${totalExpensesThisMonth.toFixed(2)}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setView('expenses')}>
-                        <CardContent className="p-6">
-                            <div className="flex items-center">
-                                <div className="p-2 rounded-lg bg-purple-100">
-                                    <svg className="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                    </svg>
-                                </div>
-                                <div className="ml-4">
-                                    <p className="text-sm font-medium text-gray-500">Pending Reimbursements</p>
-                                    <p className="text-2xl font-bold text-gray-900">${pendingReimbursements.toFixed(2)}</p>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
             </div>
 
             <div className="mt-10">
@@ -233,7 +118,7 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
                         <CardTitle>Recent Activity</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        {recentTimeEntries.map(entry => {
+                        {timeEntries.slice(0, 5).map(entry => {
                             const project = projects.find(p => p.id === entry.projectId);
                             const client = project ? clients.find(c => c.id === project.clientId) : null;
                             return (
