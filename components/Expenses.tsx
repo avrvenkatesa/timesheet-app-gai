@@ -560,15 +560,21 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
         return expenses.filter(expense => {
             let matches = true;
             
-            if (formData.startDate && expense.date < formData.startDate) matches = false;
-            if (formData.endDate && expense.date > formData.endDate) matches = false;
-            if (formData.projectId && expense.projectId !== formData.projectId) matches = false;
-            if (formData.clientId) {
+            // More flexible date filtering - only apply if dates are provided
+            if (formData.startDate && formData.startDate.trim() && expense.date < formData.startDate) matches = false;
+            if (formData.endDate && formData.endDate.trim() && expense.date > formData.endDate) matches = false;
+            
+            // Project filtering - only apply if project is selected
+            if (formData.projectId && formData.projectId.trim() && expense.projectId !== formData.projectId) matches = false;
+            
+            // Client filtering - only apply if client is selected
+            if (formData.clientId && formData.clientId.trim()) {
                 const project = projects.find(p => p.id === expense.projectId);
                 if (!project || project.clientId !== formData.clientId) matches = false;
             }
             
-            return matches && expense.status === ExpenseStatus.Approved;
+            // Include both Approved and Submitted expenses for more flexibility
+            return matches && (expense.status === ExpenseStatus.Approved || expense.status === ExpenseStatus.Submitted);
         });
     }, [expenses, formData, projects]);
 
@@ -589,8 +595,13 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
     };
 
     const handleSubmit = () => {
-        if (!formData.title || !formData.startDate || !formData.endDate || formData.selectedExpenseIds.length === 0) {
-            alert('Please fill in all required fields and select at least one expense');
+        if (!formData.title.trim()) {
+            alert('Please enter a report title');
+            return;
+        }
+        
+        if (formData.selectedExpenseIds.length === 0) {
+            alert('Please select at least one expense for the report');
             return;
         }
 
@@ -632,21 +643,23 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <Label htmlFor="reportStartDate">Start Date *</Label>
+                    <Label htmlFor="reportStartDate">Start Date (Optional)</Label>
                     <Input
                         type="date"
                         id="reportStartDate"
                         value={formData.startDate}
                         onChange={(e) => setFormData(prev => ({ ...prev, startDate: e.target.value }))}
+                        placeholder="Filter expenses from this date"
                     />
                 </div>
                 <div>
-                    <Label htmlFor="reportEndDate">End Date *</Label>
+                    <Label htmlFor="reportEndDate">End Date (Optional)</Label>
                     <Input
                         type="date"
                         id="reportEndDate"
                         value={formData.endDate}
                         onChange={(e) => setFormData(prev => ({ ...prev, endDate: e.target.value }))}
+                        placeholder="Filter expenses until this date"
                     />
                 </div>
             </div>
@@ -697,12 +710,12 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
                     Select Expenses ({availableExpenses.length} available, {formData.selectedExpenseIds.length} selected)
                 </h3>
                 <p className="text-sm text-gray-600 mb-4">
-                    Only approved expenses within the date range are shown.
+                    Approved and submitted expenses are shown. Use date filters to narrow the selection (optional).
                 </p>
                 
                 {availableExpenses.length === 0 ? (
                     <p className="text-gray-500 text-center py-8">
-                        No approved expenses found for the selected criteria.
+                        No approved or submitted expenses found. Try adjusting your filters or make sure you have expenses with "Approved" or "Submitted" status.
                     </p>
                 ) : (
                     <div className="border rounded-lg max-h-96 overflow-y-auto">
