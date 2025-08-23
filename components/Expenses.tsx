@@ -855,20 +855,26 @@ export default function Expenses() {
             const reportExpenses = expenses.filter(e => report.expenseIds.includes(e.id));
             
             // Escape CSV values that contain commas, quotes, or newlines
-            const escapeCSV = (value: string) => {
-                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-                    return `"${value.replace(/"/g, '""')}"`;
+            const escapeCSV = (value: string | number) => {
+                const str = String(value);
+                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                    return `"${str.replace(/"/g, '""')}"`;
                 }
-                return value;
+                return str;
             };
 
-            const csvRows = [
-                ['Expense Report:', escapeCSV(report.title)],
-                ['Period:', `${report.startDate} to ${report.endDate}`],
-                ['Total Amount:', `$${report.totalAmount.toFixed(2)}`],
-                ['Status:', report.status],
-                [''],
-                ['Date', 'Description', 'Amount', 'Currency', 'Category', 'Project', 'Receipts'],
+            // Create CSV content with proper headers
+            const csvContent = [
+                // Report header information
+                `Expense Report,${escapeCSV(report.title)}`,
+                `Period,${report.startDate} to ${report.endDate}`,
+                `Total Amount,$${report.totalAmount.toFixed(2)}`,
+                `Status,${report.status}`,
+                `Generated,${new Date().toLocaleDateString()}`,
+                '', // Empty line
+                // Column headers
+                'Date,Description,Amount,Currency,Category,Project,Vendor,Receipts',
+                // Expense data
                 ...reportExpenses.map(expense => {
                     const project = projects.find(p => p.id === expense.projectId);
                     return [
@@ -878,31 +884,31 @@ export default function Expenses() {
                         expense.currency,
                         expense.category,
                         escapeCSV(project?.name || 'No Project'),
-                        expense.receipts.length.toString()
-                    ];
+                        escapeCSV(expense.vendor || ''),
+                        expense.receipts.length
+                    ].join(',');
                 })
-            ];
-
-            const csvContent = csvRows.map(row => row.join(',')).join('\n');
+            ].join('\n');
             
-            // Add BOM for better Excel compatibility
-            const BOM = '\uFEFF';
-            const blob = new Blob([BOM + csvContent], { 
-                type: 'text/csv;charset=utf-8;' 
-            });
-            
+            // Create and download the file
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
             const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `expense-report-${report.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')}.csv`;
             
-            // Ensure the link is added to DOM for some browsers
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
+            // Create a temporary download link
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `expense-report-${report.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.csv`;
+            link.style.display = 'none';
             
-            // Clean up
-            setTimeout(() => URL.revokeObjectURL(url), 100);
+            // Append to body, click, and remove
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // Clean up the blob URL after a short delay
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 1000);
             
             console.log('Expense report exported successfully');
         } catch (error) {
