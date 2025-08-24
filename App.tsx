@@ -827,6 +827,55 @@ const NavLink = ({ activeView, targetView, setView, children, icon, setSidebarOp
     );
 };
 
+// --- ERROR BOUNDARY ---
+class ErrorBoundary extends React.Component<
+    { children: React.ReactNode; fallback?: React.ComponentType<{ error: Error; resetError: () => void }> },
+    { hasError: boolean; error: Error | null }
+> {
+    constructor(props: any) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+
+    static getDerivedStateFromError(error: Error) {
+        return { hasError: true, error };
+    }
+
+    componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+        console.error('Error boundary caught an error:', error, errorInfo);
+    }
+
+    render() {
+        if (this.state.hasError) {
+            const Fallback = this.props.fallback;
+            if (Fallback) {
+                return <Fallback error={this.state.error!} resetError={() => this.setState({ hasError: false, error: null })} />;
+            }
+            
+            return (
+                <div className="flex items-center justify-center min-h-screen bg-slate-100">
+                    <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-md">
+                        <h2 className="text-xl font-semibold text-red-600 mb-4">Something went wrong</h2>
+                        <p className="text-slate-600 mb-4">The application encountered an error. Please refresh the page to try again.</p>
+                        <button 
+                            onClick={() => {
+                                this.setState({ hasError: false, error: null });
+                                window.location.hash = 'dashboard';
+                                window.location.reload();
+                            }}
+                            className="px-4 py-2 bg-primary-500 text-white rounded hover:bg-primary-600"
+                        >
+                            Refresh Page
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        return this.props.children;
+    }
+}
+
 // --- MAIN APP ---
 const ThemeContext = createContext<{
     darkMode: boolean;
@@ -846,7 +895,9 @@ export default function App() {
     const getInitialView = (): View => {
         const hash = window.location.hash.slice(1);
         const validViews: View[] = ['dashboard', 'clients-projects', 'time-entries', 'invoicing', 'expenses', 'ai-assistant', 'reports', 'settings'];
-        return validViews.includes(hash as View) ? hash as View : 'dashboard';
+        const isValid = validViews.includes(hash as View);
+        console.log('Initial view:', hash, 'isValid:', isValid);
+        return isValid ? hash as View : 'dashboard';
     };
 
     const [view, setView] = useState<View>(getInitialView());
@@ -855,7 +906,10 @@ export default function App() {
 
     // Update URL when view changes
     useEffect(() => {
-        window.location.hash = view;
+        console.log('Setting hash to:', view);
+        if (window.location.hash.slice(1) !== view) {
+            window.location.hash = view;
+        }
     }, [view]);
 
     // Listen for browser back/forward navigation
@@ -863,11 +917,19 @@ export default function App() {
         const handleHashChange = () => {
             const hash = window.location.hash.slice(1);
             const validViews: View[] = ['dashboard', 'clients-projects', 'time-entries', 'invoicing', 'expenses', 'ai-assistant', 'reports', 'settings'];
+            console.log('Hash changed to:', hash);
             if (validViews.includes(hash as View)) {
+                console.log('Valid hash, setting view to:', hash);
                 setView(hash as View);
+            } else {
+                console.log('Invalid hash, redirecting to dashboard');
+                setView('dashboard');
+                window.location.hash = 'dashboard';
             }
         };
 
+        // Handle initial load and hash changes
+        handleHashChange();
         window.addEventListener('hashchange', handleHashChange);
         return () => window.removeEventListener('hashchange', handleHashChange);
     }, []);
@@ -894,17 +956,22 @@ export default function App() {
                 case 'settings':
                     return <Settings />;
                 default:
+                    console.log('Unknown view:', view, 'redirecting to dashboard');
                     return <Dashboard setView={setView} />;
             }
         } catch (error) {
-            console.error('Error rendering view:', error);
+            console.error('Error rendering view:', view, error);
             return (
                 <div className="flex items-center justify-center min-h-[50vh]">
                     <div className="text-center">
                         <h2 className="text-xl font-semibold text-red-600 mb-2">Something went wrong</h2>
-                        <p className="text-slate-600 mb-4">There was an error loading this page.</p>
+                        <p className="text-slate-600 mb-4">There was an error loading this page. View: {view}</p>
                         <button 
-                            onClick={() => setView('dashboard')}
+                            onClick={() => {
+                                console.log('Resetting to dashboard');
+                                setView('dashboard');
+                                window.location.hash = 'dashboard';
+                            }}
                             className="px-4 py-2 bg-primary-500 text-white rounded hover:bg-primary-600"
                         >
                             Go to Dashboard
@@ -916,10 +983,11 @@ export default function App() {
     };
 
     return (
-        <AppProvider>
-            <ToastProvider>
-                <ThemeContext.Provider value={{ darkMode, toggleDarkMode }}>
-                <div className={`flex h-screen transition-colors duration-200 ${darkMode ? 'dark bg-slate-900' : 'bg-slate-100'}`}>
+        <ErrorBoundary>
+            <AppProvider>
+                <ToastProvider>
+                    <ThemeContext.Provider value={{ darkMode, toggleDarkMode }}>
+                    <div className={`flex h-screen transition-colors duration-200 ${darkMode ? 'dark bg-slate-900' : 'bg-slate-100'}`}>
                     {/* Mobile sidebar overlay */}
                     {sidebarOpen && (
                         <div 
@@ -1022,5 +1090,6 @@ export default function App() {
             </ThemeContext.Provider>
             </ToastProvider>
         </AppProvider>
+        </ErrorBoundary>
     );
 }
