@@ -864,12 +864,12 @@ export default function Expenses() {
         }
     };
 
-    const exportExpenseReport = (report: ExpenseReport, format: 'csv' | 'pdf' = 'csv') => {
+    const exportExpenseReport = async (report: ExpenseReport, format: 'csv' | 'pdf' = 'csv') => {
         try {
             const reportExpenses = expenses.filter(e => report.expenseIds.includes(e.id));
             
             if (format === 'pdf') {
-                generateExpenseReportPDF(report, reportExpenses);
+                await generateExpenseReportPDF(report, reportExpenses);
             } else {
                 // Escape CSV values that contain commas, quotes, or newlines
                 const escapeCSV = (value: string | number) => {
@@ -935,7 +935,7 @@ export default function Expenses() {
         }
     };
 
-    const generateExpenseReportPDF = (report: ExpenseReport, reportExpenses: Expense[]) => {
+    const generateExpenseReportPDF = async (report: ExpenseReport, reportExpenses: Expense[]) => {
         // Get client information for the report
         let client = null;
         if (report.clientId) {
@@ -944,6 +944,41 @@ export default function Expenses() {
             const project = projects.find(p => p.id === report.projectId);
             if (project) {
                 client = clients.find(c => c.id === project.clientId);
+            }
+        }
+
+        // Function to convert image file to base64 data URL
+        const getImageDataUrl = async (receipt: ExpenseReceipt): Promise<string | null> => {
+            try {
+                if (!receipt.fileType.startsWith('image/')) {
+                    return null;
+                }
+                
+                const response = await fetch(receipt.url);
+                const blob = await response.blob();
+                
+                return new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result as string);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(blob);
+                });
+            } catch (error) {
+                console.error('Failed to load receipt image:', error);
+                return null;
+            }
+        };
+
+        // Pre-load all receipt images
+        const receiptImages = new Map<string, string>();
+        for (const expense of reportExpenses) {
+            for (const receipt of expense.receipts) {
+                if (receipt.fileType.startsWith('image/')) {
+                    const dataUrl = await getImageDataUrl(receipt);
+                    if (dataUrl) {
+                        receiptImages.set(receipt.id, dataUrl);
+                    }
+                }
             }
         }
 
@@ -1228,36 +1263,66 @@ export default function Expenses() {
                 </table>
 
                 ${reportExpenses.some(exp => exp.receipts.length > 0) ? `
-                <div style="margin-top: 40px;">
+                <div style="margin-top: 40px; page-break-before: always;">
                     <h3 style="color: #1f2937; font-size: 18px; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 8px;">
-                        Receipt Details
+                        Receipt Details & Images
                     </h3>
                     <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;">
                         ${reportExpenses.filter(exp => exp.receipts.length > 0).map(expense => `
-                            <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
-                                <h4 style="color: #374151; font-size: 14px; font-weight: bold; margin-bottom: 10px;">
-                                    ${expense.description} - ${formatDate(expense.date)}
+                            <div style="margin-bottom: 30px; padding-bottom: 25px; border-bottom: 1px solid #e2e8f0; page-break-inside: avoid;">
+                                <h4 style="color: #374151; font-size: 16px; font-weight: bold; margin-bottom: 15px; padding: 10px; background-color: white; border-radius: 6px; border-left: 4px solid #2563eb;">
+                                    ${expense.description} - ${formatDate(expense.date)} (${formatCurrency(expense.amount, expense.currency)})
                                 </h4>
                                 <div style="margin-left: 15px;">
                                     ${expense.receipts.map(receipt => `
-                                        <div style="margin-bottom: 12px; padding: 10px; background-color: white; border-radius: 4px; border: 1px solid #e5e7eb;">
-                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
-                                                <strong style="color: #1f2937; font-size: 13px;">${receipt.fileName}</strong>
-                                                <span style="color: #6b7280; font-size: 11px;">
+                                        <div style="margin-bottom: 20px; padding: 15px; background-color: white; border-radius: 6px; border: 1px solid #e5e7eb; page-break-inside: avoid;">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px;">
+                                                <strong style="color: #1f2937; font-size: 14px;">${receipt.fileName}</strong>
+                                                <span style="color: #6b7280; font-size: 11px; background-color: #f3f4f6; padding: 2px 6px; border-radius: 3px;">
                                                     ${(receipt.fileSize / 1024).toFixed(1)} KB
                                                 </span>
                                             </div>
-                                            <div style="font-size: 11px; color: #6b7280; margin-bottom: 5px;">
-                                                <strong>Upload Date:</strong> ${formatDate(receipt.uploadDate)}<br>
-                                                <strong>File Type:</strong> ${receipt.fileType}
+                                            <div style="font-size: 12px; color: #6b7280; margin-bottom: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                                                <div><strong>Upload Date:</strong> ${formatDate(receipt.uploadDate)}</div>
+                                                <div><strong>File Type:</strong> ${receipt.fileType}</div>
                                             </div>
+                                            
+                                            ${receiptImages.has(receipt.id) ? `
+                                                <div style="margin: 15px 0; text-align: center; padding: 10px; background-color: #f8fafc; border-radius: 6px; border: 2px dashed #cbd5e1;">
+                                                    <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; font-weight: 600;">Receipt Image:</p>
+                                                    <img src="${receiptImages.get(receipt.id)}" 
+                                                         alt="Receipt: ${receipt.fileName}" 
+                                                         style="max-width: 100%; max-height: 400px; border: 1px solid #d1d5db; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background-color: white; object-fit: contain;">
+                                                    <p style="margin: 8px 0 0 0; font-size: 10px; color: #9ca3af; font-style: italic;">Original size: ${receipt.fileName}</p>
+                                                </div>
+                                            ` : receipt.fileType === 'application/pdf' ? `
+                                                <div style="margin: 15px 0; padding: 15px; background-color: #fef3c7; border-radius: 6px; border: 1px solid #f59e0b; text-align: center;">
+                                                    <div style="font-size: 24px; color: #d97706; margin-bottom: 8px;">📄</div>
+                                                    <p style="margin: 0; font-size: 12px; color: #92400e; font-weight: 600;">PDF Receipt</p>
+                                                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #a16207;">This PDF receipt is available in the digital system for viewing and download.</p>
+                                                </div>
+                                            ` : `
+                                                <div style="margin: 15px 0; padding: 15px; background-color: #f1f5f9; border-radius: 6px; border: 1px solid #94a3b8; text-align: center;">
+                                                    <div style="font-size: 24px; color: #64748b; margin-bottom: 8px;">📎</div>
+                                                    <p style="margin: 0; font-size: 12px; color: #475569; font-weight: 600;">File Attachment</p>
+                                                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">This receipt file is available in the digital system for viewing and download.</p>
+                                                </div>
+                                            `}
+                                            
                                             ${receipt.ocrData ? `
-                                                <div style="font-size: 11px; background-color: #f0f9ff; padding: 8px; border-radius: 3px; border-left: 3px solid #2563eb;">
-                                                    <strong style="color: #1e40af;">OCR Data:</strong><br>
-                                                    ${receipt.ocrData.extractedAmount ? `Amount Detected: $${receipt.ocrData.extractedAmount.toFixed(2)}<br>` : ''}
-                                                    ${receipt.ocrData.extractedVendor ? `Vendor: ${receipt.ocrData.extractedVendor}<br>` : ''}
-                                                    ${receipt.ocrData.extractedDate ? `Date: ${receipt.ocrData.extractedDate}<br>` : ''}
-                                                    <span style="color: #059669;">Confidence: ${(receipt.ocrData.confidence * 100).toFixed(1)}%</span>
+                                                <div style="font-size: 11px; background-color: #f0f9ff; padding: 12px; border-radius: 6px; border-left: 4px solid #2563eb; margin-top: 10px;">
+                                                    <div style="display: flex; align-items: center; margin-bottom: 6px;">
+                                                        <span style="font-size: 16px; margin-right: 6px;">🤖</span>
+                                                        <strong style="color: #1e40af; font-size: 12px;">AI-Extracted Data</strong>
+                                                    </div>
+                                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px;">
+                                                        ${receipt.ocrData.extractedAmount ? `<div><strong>Amount:</strong> $${receipt.ocrData.extractedAmount.toFixed(2)}</div>` : ''}
+                                                        ${receipt.ocrData.extractedVendor ? `<div><strong>Vendor:</strong> ${receipt.ocrData.extractedVendor}</div>` : ''}
+                                                        ${receipt.ocrData.extractedDate ? `<div><strong>Date:</strong> ${receipt.ocrData.extractedDate}</div>` : ''}
+                                                    </div>
+                                                    <div style="margin-top: 8px; padding-top: 6px; border-top: 1px solid #bfdbfe;">
+                                                        <span style="color: #059669; font-weight: 600;">Confidence: ${(receipt.ocrData.confidence * 100).toFixed(1)}%</span>
+                                                    </div>
                                                 </div>
                                             ` : ''}
                                         </div>
@@ -1265,10 +1330,16 @@ export default function Expenses() {
                                 </div>
                             </div>
                         `).join('')}
-                        <div style="margin-top: 15px; padding: 10px; background-color: #eff6ff; border-radius: 4px; border: 1px solid #bfdbfe;">
-                            <p style="font-size: 12px; color: #1e40af; margin: 0;">
-                                <strong>Note:</strong> Receipt files are stored digitally and can be accessed through the expense management system. 
-                                For audit purposes, original digital receipts are available upon request.
+                        <div style="margin-top: 20px; padding: 15px; background-color: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+                            <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                                <span style="font-size: 16px; margin-right: 8px;">ℹ️</span>
+                                <strong style="color: #1e40af; font-size: 13px;">Receipt Information</strong>
+                            </div>
+                            <p style="font-size: 12px; color: #1e40af; margin: 0; line-height: 1.4;">
+                                • Image receipts are embedded directly in this report for immediate viewing<br>
+                                • PDF and other file types are stored digitally and accessible through the expense management system<br>
+                                • All original digital receipts are available for audit and compliance purposes<br>
+                                • Receipt images are automatically processed using OCR technology where applicable
                             </p>
                         </div>
                     </div>
