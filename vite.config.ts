@@ -35,6 +35,13 @@ export default defineConfig(({ mode }) => {
           '.replit.app',
           'timesheet-app-gai-avrvenkatesa.replit.app'
         ]
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: undefined
+          }
+        }
       }
     };
 });
