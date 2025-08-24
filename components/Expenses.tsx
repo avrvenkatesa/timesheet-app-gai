@@ -1223,9 +1223,6 @@ export default function Expenses() {
                                 </td>
                             </tr>
                             `;
-                        }).join('')}</td>
-                    </tr>
-                            `;
                         }).join('')}
                     </tbody>
                 </table>
