@@ -1,2 +1,6 @@
 
+# Redirect all requests to index.html for SPA routing
 /*    /index.html   200
+
+# Handle hash routing
+/#/*  /index.html   200

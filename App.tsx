@@ -842,32 +842,76 @@ export const useTheme = () => {
 };
 
 export default function App() {
-    const [view, setView] = useState<View>('dashboard');
+    // Initialize view from URL hash or default to dashboard
+    const getInitialView = (): View => {
+        const hash = window.location.hash.slice(1);
+        const validViews: View[] = ['dashboard', 'clients-projects', 'time-entries', 'invoicing', 'expenses', 'ai-assistant', 'reports', 'settings'];
+        return validViews.includes(hash as View) ? hash as View : 'dashboard';
+    };
+
+    const [view, setView] = useState<View>(getInitialView());
     const [darkMode, setDarkMode] = useLocalStorage('darkMode', false);
     const [sidebarOpen, setSidebarOpen] = useState(false);
+
+    // Update URL when view changes
+    useEffect(() => {
+        window.location.hash = view;
+    }, [view]);
+
+    // Listen for browser back/forward navigation
+    useEffect(() => {
+        const handleHashChange = () => {
+            const hash = window.location.hash.slice(1);
+            const validViews: View[] = ['dashboard', 'clients-projects', 'time-entries', 'invoicing', 'expenses', 'ai-assistant', 'reports', 'settings'];
+            if (validViews.includes(hash as View)) {
+                setView(hash as View);
+            }
+        };
+
+        window.addEventListener('hashchange', handleHashChange);
+        return () => window.removeEventListener('hashchange', handleHashChange);
+    }, []);
 
     const toggleDarkMode = () => setDarkMode(prev => !prev);
 
     const renderView = () => {
-        switch (view) {
-            case 'dashboard':
-                return <Dashboard setView={setView} />;
-            case 'clients-projects':
-                return <ClientsProjects />;
-            case 'time-entries':
-                return <TimeEntries />;
-            case 'invoicing':
-                return <Invoicing />;
-            case 'expenses':
-                return <Expenses />;
-            case 'ai-assistant':
-                return <AIAssistant />;
-            case 'reports':
-                return <Reports />;
-            case 'settings':
-                return <Settings />;
-            default:
-                return <Dashboard setView={setView} />;
+        try {
+            switch (view) {
+                case 'dashboard':
+                    return <Dashboard setView={setView} />;
+                case 'clients-projects':
+                    return <ClientsProjects />;
+                case 'time-entries':
+                    return <TimeEntries />;
+                case 'invoicing':
+                    return <Invoicing />;
+                case 'expenses':
+                    return <Expenses />;
+                case 'ai-assistant':
+                    return <AIAssistant />;
+                case 'reports':
+                    return <Reports />;
+                case 'settings':
+                    return <Settings />;
+                default:
+                    return <Dashboard setView={setView} />;
+            }
+        } catch (error) {
+            console.error('Error rendering view:', error);
+            return (
+                <div className="flex items-center justify-center min-h-[50vh]">
+                    <div className="text-center">
+                        <h2 className="text-xl font-semibold text-red-600 mb-2">Something went wrong</h2>
+                        <p className="text-slate-600 mb-4">There was an error loading this page.</p>
+                        <button 
+                            onClick={() => setView('dashboard')}
+                            className="px-4 py-2 bg-primary-500 text-white rounded hover:bg-primary-600"
+                        >
+                            Go to Dashboard
+                        </button>
+                    </div>
+                </div>
+            );
         }
     };
 
