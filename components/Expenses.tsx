@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../App';
 import type { Expense, ExpenseTemplate, ExpenseReport, ExpenseReceipt, Project, ProjectPhase } from '../types';
@@ -386,11 +385,11 @@ const ReceiptManager = ({ expense }: { expense: Expense }) => {
                                     Delete
                                 </Button>
                             </div>
-                            
+
                             <div className="text-xs text-gray-500 space-y-1">
                                 <p>Size: {(receipt.fileSize / 1024).toFixed(1)} KB</p>
                                 <p>Uploaded: {formatDate(receipt.uploadDate)}</p>
-                                
+
                                 {receipt.ocrData && (
                                     <div className="mt-2 p-2 bg-gray-50 rounded">
                                         <p className="font-medium">OCR Data:</p>
@@ -404,7 +403,7 @@ const ReceiptManager = ({ expense }: { expense: Expense }) => {
                                     </div>
                                 )}
                             </div>
-                            
+
                             <Button
                                 variant="secondary"
                                 size="sm"
@@ -559,20 +558,20 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
     const availableExpenses = useMemo(() => {
         return expenses.filter(expense => {
             let matches = true;
-            
+
             // More flexible date filtering - only apply if dates are provided
             if (formData.startDate && formData.startDate.trim() && expense.date < formData.startDate) matches = false;
             if (formData.endDate && formData.endDate.trim() && expense.date > formData.endDate) matches = false;
-            
+
             // Project filtering - only apply if project is selected
             if (formData.projectId && formData.projectId.trim() && expense.projectId !== formData.projectId) matches = false;
-            
+
             // Client filtering - only apply if client is selected
             if (formData.clientId && formData.clientId.trim()) {
                 const project = projects.find(p => p.id === expense.projectId);
                 if (!project || project.clientId !== formData.clientId) matches = false;
             }
-            
+
             // Include both Approved and Submitted expenses for more flexibility
             return matches && (expense.status === ExpenseStatus.Approved || expense.status === ExpenseStatus.Submitted);
         });
@@ -599,7 +598,7 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
             alert('Please enter a report title');
             return;
         }
-        
+
         if (formData.selectedExpenseIds.length === 0) {
             alert('Please select at least one expense for the report');
             return;
@@ -712,7 +711,7 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
                 <p className="text-sm text-gray-600 mb-4">
                     Approved and submitted expenses are shown. Use date filters to narrow the selection (optional).
                 </p>
-                
+
                 {availableExpenses.length === 0 ? (
                     <p className="text-gray-500 text-center py-8">
                         No approved or submitted expenses found. Try adjusting your filters or make sure you have expenses with "Approved" or "Submitted" status.
@@ -729,7 +728,7 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
                                             onChange={(e) => {
                                                 setFormData(prev => ({
                                                     ...prev,
-                                                    selectedExpenseIds: e.target.checked 
+                                                    selectedExpenseIds: e.target.checked
                                                         ? availableExpenses.map(exp => exp.id)
                                                         : []
                                                 }));
@@ -788,18 +787,18 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
 
 // Main Expenses Component
 export default function Expenses() {
-    const { 
-        expenses, 
-        addExpense, 
-        updateExpense, 
-        deleteExpense, 
-        projects, 
+    const {
+        expenses,
+        addExpense,
+        updateExpense,
+        deleteExpense,
+        projects,
         projectPhases,
         exportExpenseData,
         clients,
         billerInfo
     } = useAppContext();
-    
+
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [viewingExpense, setViewingExpense] = useState<Expense | null>(null);
@@ -831,8 +830,8 @@ export default function Expenses() {
         setIsExporting(true);
         try {
             const data = await exportExpenseData(format);
-            const blob = new Blob([data], { 
-                type: format === 'json' ? 'application/json' : 'text/csv' 
+            const blob = new Blob([data], {
+                type: format === 'json' ? 'application/json' : 'text/csv'
             });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -867,7 +866,7 @@ export default function Expenses() {
     const exportExpenseReport = async (report: ExpenseReport, format: 'csv' | 'pdf' = 'csv') => {
         try {
             const reportExpenses = expenses.filter(e => report.expenseIds.includes(e.id));
-            
+
             if (format === 'pdf') {
                 await generateExpenseReportPDF(report, reportExpenses);
             } else {
@@ -906,28 +905,28 @@ export default function Expenses() {
                         ].join(',');
                     })
                 ].join('\n');
-                
+
                 // Create and download the file
                 const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
                 const url = URL.createObjectURL(blob);
-                
+
                 // Create a temporary download link
                 const link = document.createElement('a');
                 link.href = url;
                 link.download = `expense-report-${report.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.csv`;
                 link.style.display = 'none';
-                
+
                 // Append to body, click, and remove
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
-                
+
                 // Clean up the blob URL after a short delay
                 setTimeout(() => {
                     URL.revokeObjectURL(url);
                 }, 1000);
             }
-            
+
             console.log('Expense report exported successfully');
         } catch (error) {
             console.error('Failed to export expense report:', error);
@@ -953,10 +952,10 @@ export default function Expenses() {
                 if (!receipt.fileType.startsWith('image/')) {
                     return null;
                 }
-                
+
                 const response = await fetch(receipt.url);
                 const blob = await response.blob();
-                
+
                 return new Promise((resolve) => {
                     const reader = new FileReader();
                     reader.onload = () => resolve(reader.result as string);
@@ -1175,10 +1174,10 @@ export default function Expenses() {
                         <div class="report-title">EXPENSE REPORT</div>
                         <div class="report-details">
                             <strong>Report #:</strong> ${report.id.slice(-8).toUpperCase()}<br>
-                            <strong>Generated:</strong> ${new Date().toLocaleDateString('en-US', { 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
+                            <strong>Generated:</strong> ${new Date().toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
                             })}<br>
                             <strong>Period:</strong> ${formatDate(report.startDate)} - ${formatDate(report.endDate)}
                         </div>
@@ -1242,17 +1241,17 @@ export default function Expenses() {
                                 <td>${project ? project.name : 'No Project'}</td>
                                 <td class="amount-cell">${formatCurrency(expense.amount, expense.currency)}</td>
                                 <td style="font-size: 11px; line-height: 1.3;">
-                                    ${expense.receipts.length > 0 ? 
+                                    ${expense.receipts.length > 0 ?
                                         expense.receipts.map(receipt => `
                                             <div style="margin-bottom: 4px;">
                                                 <strong>${receipt.fileName}</strong><br>
                                                 <span style="color: #6b7280;">
-                                                    ${(receipt.fileSize / 1024).toFixed(1)} KB | 
+                                                    ${(receipt.fileSize / 1024).toFixed(1)} KB |
                                                     ${formatDate(receipt.uploadDate)}
                                                 </span>
                                                 ${receipt.ocrData ? `<br><span style="color: #059669; font-weight: 500;">OCR: ${receipt.ocrData.confidence ? (receipt.ocrData.confidence * 100).toFixed(0) + '% confidence' : 'Processed'}</span>` : ''}
                                             </div>
-                                        `).join('') 
+                                        `).join('')
                                         : '<span style="color: #9ca3af;">No receipts</span>'
                                     }
                                 </td>
@@ -1286,29 +1285,48 @@ export default function Expenses() {
                                                 <div><strong>Upload Date:</strong> ${formatDate(receipt.uploadDate)}</div>
                                                 <div><strong>File Type:</strong> ${receipt.fileType}</div>
                                             </div>
-                                            
+
                                             ${receiptImages.has(receipt.id) ? `
                                                 <div style="margin: 15px 0; text-align: center; padding: 10px; background-color: #f8fafc; border-radius: 6px; border: 2px dashed #cbd5e1;">
                                                     <p style="margin: 0 0 10px 0; font-size: 12px; color: #64748b; font-weight: 600;">Receipt Image:</p>
-                                                    <img src="${receiptImages.get(receipt.id)}" 
-                                                         alt="Receipt: ${receipt.fileName}" 
+                                                    <img src="${receiptImages.get(receipt.id)}"
+                                                         alt="Receipt: ${receipt.fileName}"
                                                          style="max-width: 100%; max-height: 400px; border: 1px solid #d1d5db; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); background-color: white; object-fit: contain;">
                                                     <p style="margin: 8px 0 0 0; font-size: 10px; color: #9ca3af; font-style: italic;">Original size: ${receipt.fileName}</p>
                                                 </div>
                                             ` : receipt.fileType === 'application/pdf' ? `
                                                 <div style="margin: 15px 0; padding: 15px; background-color: #fef3c7; border-radius: 6px; border: 1px solid #f59e0b; text-align: center;">
                                                     <div style="font-size: 24px; color: #d97706; margin-bottom: 8px;">📄</div>
-                                                    <p style="margin: 0; font-size: 12px; color: #92400e; font-weight: 600;">PDF Receipt</p>
-                                                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #a16207;">This PDF receipt is available in the digital system for viewing and download.</p>
+                                                    <p style="margin: 0; font-size: 12px; color: #92400e; font-weight: 600;">PDF Receipt Available</p>
+                                                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #a16207;">
+                                                        <strong>File:</strong> ${receipt.fileName}<br>
+                                                        <strong>Size:</strong> ${(receipt.fileSize / 1024).toFixed(1)} KB<br>
+                                                        <strong>Receipt ID:</strong> ${receipt.id.slice(-8).toUpperCase()}
+                                                    </p>
+                                                    <div style="margin-top: 10px; padding: 8px; background-color: #fff3cd; border-radius: 4px; border: 1px solid #ffd23f;">
+                                                        <p style="margin: 0; font-size: 10px; color: #856404; font-weight: 600;">
+                                                            💡 Access Instructions: Log into the expense management system and navigate to this expense record to view or download the full PDF receipt.
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             ` : `
                                                 <div style="margin: 15px 0; padding: 15px; background-color: #f1f5f9; border-radius: 6px; border: 1px solid #94a3b8; text-align: center;">
                                                     <div style="font-size: 24px; color: #64748b; margin-bottom: 8px;">📎</div>
-                                                    <p style="margin: 0; font-size: 12px; color: #475569; font-weight: 600;">File Attachment</p>
-                                                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">This receipt file is available in the digital system for viewing and download.</p>
+                                                    <p style="margin: 0; font-size: 12px; color: #475569; font-weight: 600;">Digital Receipt File</p>
+                                                    <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748b;">
+                                                        <strong>File:</strong> ${receipt.fileName}<br>
+                                                        <strong>Type:</strong> ${receipt.fileType}<br>
+                                                        <strong>Size:</strong> ${(receipt.fileSize / 1024).toFixed(1)} KB<br>
+                                                        <strong>Receipt ID:</strong> ${receipt.id.slice(-8).toUpperCase()}
+                                                    </p>
+                                                    <div style="margin-top: 8px; padding: 6px; background-color: #e2e8f0; border-radius: 4px;">
+                                                        <p style="margin: 0; font-size: 10px; color: #475569;">
+                                                            Access this file through the expense management system.
+                                                        </p>
+                                                    </div>
                                                 </div>
                                             `}
-                                            
+
                                             ${receipt.ocrData ? `
                                                 <div style="font-size: 11px; background-color: #f0f9ff; padding: 12px; border-radius: 6px; border-left: 4px solid #2563eb; margin-top: 10px;">
                                                     <div style="display: flex; align-items: center; margin-bottom: 6px;">
@@ -1409,7 +1427,7 @@ export default function Expenses() {
         if (printWindow) {
             printWindow.document.write(htmlContent);
             printWindow.document.close();
-            
+
             // Wait for content to load then trigger print
             printWindow.onload = () => {
                 setTimeout(() => {
@@ -1587,7 +1605,7 @@ export default function Expenses() {
                                 {filteredExpenses.map(expense => {
                                     const project = projects.find(p => p.id === expense.projectId);
                                     const phase = projectPhases.find(p => p.id === expense.phaseId);
-                                    
+
                                     return (
                                         <tr key={expense.id} className="bg-white border-b hover:bg-slate-50">
                                             <td className="px-6 py-4">{formatDate(expense.date)}</td>
@@ -1655,8 +1673,8 @@ export default function Expenses() {
             </Card>
 
             {/* Create/Edit Modal */}
-            <Modal 
-                isOpen={isCreateModalOpen || !!editingExpense} 
+            <Modal
+                isOpen={isCreateModalOpen || !!editingExpense}
                 onClose={() => {
                     setIsCreateModalOpen(false);
                     setEditingExpense(null);
@@ -1752,8 +1770,8 @@ export default function Expenses() {
             )}
 
             {/* Create Expense Report Modal */}
-            <Modal 
-                isOpen={isCreateReportModalOpen} 
+            <Modal
+                isOpen={isCreateReportModalOpen}
                 onClose={() => setIsCreateReportModalOpen(false)}
                 title="Create Expense Report"
             >
