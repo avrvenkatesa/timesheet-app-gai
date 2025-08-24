@@ -412,22 +412,32 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             }
             
             if (!receiptToDelete || !expenseWithReceipt) {
+                console.error('Receipt not found with ID:', receiptId);
                 throw new Error('Receipt not found');
             }
             
-            // Revoke blob URL to free memory
-            if (receiptToDelete.url.startsWith('blob:')) {
-                URL.revokeObjectURL(receiptToDelete.url);
+            // Revoke blob URL to free memory if it's a blob URL
+            try {
+                if (receiptToDelete.url && receiptToDelete.url.startsWith('blob:')) {
+                    URL.revokeObjectURL(receiptToDelete.url);
+                }
+            } catch (urlError) {
+                console.warn('Could not revoke blob URL:', urlError);
+                // Continue with deletion even if URL revocation fails
             }
             
             // Update expense to remove receipt
             setExpenses(prev => prev.map(expense => 
                 expense.id === expenseWithReceipt.id 
-                    ? { ...expense, receipts: expense.receipts.filter(r => r.id !== receiptId) }
+                    ? { 
+                        ...expense, 
+                        receipts: expense.receipts.filter(r => r.id !== receiptId) 
+                      }
                     : expense
             ));
             
             console.log('Receipt deleted successfully:', receiptToDelete.fileName);
+            return true;
         } catch (error) {
             console.error('Receipt deletion failed:', error);
             throw new Error('Failed to delete receipt. Please try again.');

@@ -1206,12 +1206,77 @@ export default function Expenses() {
                                 <td>${expense.vendor || '-'}</td>
                                 <td>${project ? project.name : 'No Project'}</td>
                                 <td class="amount-cell">${formatCurrency(expense.amount, expense.currency)}</td>
-                                <td style="text-align: center;">${expense.receipts.length > 0 ? `✓ (${expense.receipts.length})` : '-'}</td>
+                                <td style="font-size: 11px; line-height: 1.3;">
+                                    ${expense.receipts.length > 0 ? 
+                                        expense.receipts.map(receipt => `
+                                            <div style="margin-bottom: 4px;">
+                                                <strong>${receipt.fileName}</strong><br>
+                                                <span style="color: #6b7280;">
+                                                    ${(receipt.fileSize / 1024).toFixed(1)} KB | 
+                                                    ${formatDate(receipt.uploadDate)}
+                                                </span>
+                                                ${receipt.ocrData ? `<br><span style="color: #059669; font-weight: 500;">OCR: ${receipt.ocrData.confidence ? (receipt.ocrData.confidence * 100).toFixed(0) + '% confidence' : 'Processed'}</span>` : ''}
+                                            </div>
+                                        `).join('') 
+                                        : '<span style="color: #9ca3af;">No receipts</span>'
+                                    }
+                                </td>
                             </tr>
+                            `;
+                        }).join('')}</td>
+                    </tr>
                             `;
                         }).join('')}
                     </tbody>
                 </table>
+
+                ${reportExpenses.some(exp => exp.receipts.length > 0) ? `
+                <div style="margin-top: 40px;">
+                    <h3 style="color: #1f2937; font-size: 18px; margin-bottom: 20px; border-bottom: 2px solid #2563eb; padding-bottom: 8px;">
+                        Receipt Details
+                    </h3>
+                    <div style="background-color: #f8fafc; padding: 20px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        ${reportExpenses.filter(exp => exp.receipts.length > 0).map(expense => `
+                            <div style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
+                                <h4 style="color: #374151; font-size: 14px; font-weight: bold; margin-bottom: 10px;">
+                                    ${expense.description} - ${formatDate(expense.date)}
+                                </h4>
+                                <div style="margin-left: 15px;">
+                                    ${expense.receipts.map(receipt => `
+                                        <div style="margin-bottom: 12px; padding: 10px; background-color: white; border-radius: 4px; border: 1px solid #e5e7eb;">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 5px;">
+                                                <strong style="color: #1f2937; font-size: 13px;">${receipt.fileName}</strong>
+                                                <span style="color: #6b7280; font-size: 11px;">
+                                                    ${(receipt.fileSize / 1024).toFixed(1)} KB
+                                                </span>
+                                            </div>
+                                            <div style="font-size: 11px; color: #6b7280; margin-bottom: 5px;">
+                                                <strong>Upload Date:</strong> ${formatDate(receipt.uploadDate)}<br>
+                                                <strong>File Type:</strong> ${receipt.fileType}
+                                            </div>
+                                            ${receipt.ocrData ? `
+                                                <div style="font-size: 11px; background-color: #f0f9ff; padding: 8px; border-radius: 3px; border-left: 3px solid #2563eb;">
+                                                    <strong style="color: #1e40af;">OCR Data:</strong><br>
+                                                    ${receipt.ocrData.extractedAmount ? `Amount Detected: $${receipt.ocrData.extractedAmount.toFixed(2)}<br>` : ''}
+                                                    ${receipt.ocrData.extractedVendor ? `Vendor: ${receipt.ocrData.extractedVendor}<br>` : ''}
+                                                    ${receipt.ocrData.extractedDate ? `Date: ${receipt.ocrData.extractedDate}<br>` : ''}
+                                                    <span style="color: #059669;">Confidence: ${(receipt.ocrData.confidence * 100).toFixed(1)}%</span>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                        <div style="margin-top: 15px; padding: 10px; background-color: #eff6ff; border-radius: 4px; border: 1px solid #bfdbfe;">
+                            <p style="font-size: 12px; color: #1e40af; margin: 0;">
+                                <strong>Note:</strong> Receipt files are stored digitally and can be accessed through the expense management system. 
+                                For audit purposes, original digital receipts are available upon request.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
 
                 ${report.notes ? `
                 <div style="margin-top: 30px; padding: 15px; background-color: #f9fafb; border-left: 4px solid #6b7280;">
