@@ -796,7 +796,8 @@ export default function Expenses() {
         projects, 
         projectPhases,
         exportExpenseData,
-        clients 
+        clients,
+        billerInfo
     } = useAppContext();
     
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -863,70 +864,395 @@ export default function Expenses() {
         }
     };
 
-    const exportExpenseReport = (report: ExpenseReport) => {
+    const exportExpenseReport = (report: ExpenseReport, format: 'csv' | 'pdf' = 'csv') => {
         try {
             const reportExpenses = expenses.filter(e => report.expenseIds.includes(e.id));
             
-            // Escape CSV values that contain commas, quotes, or newlines
-            const escapeCSV = (value: string | number) => {
-                const str = String(value);
-                if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-                    return `"${str.replace(/"/g, '""')}"`;
-                }
-                return str;
-            };
+            if (format === 'pdf') {
+                generateExpenseReportPDF(report, reportExpenses);
+            } else {
+                // Escape CSV values that contain commas, quotes, or newlines
+                const escapeCSV = (value: string | number) => {
+                    const str = String(value);
+                    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                        return `"${str.replace(/"/g, '""')}"`;
+                    }
+                    return str;
+                };
 
-            // Create CSV content with proper headers
-            const csvContent = [
-                // Report header information
-                `Expense Report,${escapeCSV(report.title)}`,
-                `Period,${report.startDate} to ${report.endDate}`,
-                `Total Amount,$${report.totalAmount.toFixed(2)}`,
-                `Status,${report.status}`,
-                `Generated,${new Date().toLocaleDateString()}`,
-                '', // Empty line
-                // Column headers
-                'Date,Description,Amount,Currency,Category,Project,Vendor,Receipts',
-                // Expense data
-                ...reportExpenses.map(expense => {
-                    const project = projects.find(p => p.id === expense.projectId);
-                    return [
-                        expense.date,
-                        escapeCSV(expense.description),
-                        expense.amount.toFixed(2),
-                        expense.currency,
-                        expense.category,
-                        escapeCSV(project?.name || 'No Project'),
-                        escapeCSV(expense.vendor || ''),
-                        expense.receipts.length
-                    ].join(',');
-                })
-            ].join('\n');
-            
-            // Create and download the file
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
-            const url = URL.createObjectURL(blob);
-            
-            // Create a temporary download link
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `expense-report-${report.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.csv`;
-            link.style.display = 'none';
-            
-            // Append to body, click, and remove
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            // Clean up the blob URL after a short delay
-            setTimeout(() => {
-                URL.revokeObjectURL(url);
-            }, 1000);
+                // Create CSV content with proper headers
+                const csvContent = [
+                    // Report header information
+                    `Expense Report,${escapeCSV(report.title)}`,
+                    `Period,${report.startDate} to ${report.endDate}`,
+                    `Total Amount,$${report.totalAmount.toFixed(2)}`,
+                    `Status,${report.status}`,
+                    `Generated,${new Date().toLocaleDateString()}`,
+                    '', // Empty line
+                    // Column headers
+                    'Date,Description,Amount,Currency,Category,Project,Vendor,Receipts',
+                    // Expense data
+                    ...reportExpenses.map(expense => {
+                        const project = projects.find(p => p.id === expense.projectId);
+                        return [
+                            expense.date,
+                            escapeCSV(expense.description),
+                            expense.amount.toFixed(2),
+                            expense.currency,
+                            expense.category,
+                            escapeCSV(project?.name || 'No Project'),
+                            escapeCSV(expense.vendor || ''),
+                            expense.receipts.length
+                        ].join(',');
+                    })
+                ].join('\n');
+                
+                // Create and download the file
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                
+                // Create a temporary download link
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = `expense-report-${report.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.csv`;
+                link.style.display = 'none';
+                
+                // Append to body, click, and remove
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Clean up the blob URL after a short delay
+                setTimeout(() => {
+                    URL.revokeObjectURL(url);
+                }, 1000);
+            }
             
             console.log('Expense report exported successfully');
         } catch (error) {
             console.error('Failed to export expense report:', error);
             alert('Failed to export expense report. Please try again.');
+        }
+    };
+
+    const generateExpenseReportPDF = (report: ExpenseReport, reportExpenses: Expense[]) => {
+        // Get client information for the report
+        let client = null;
+        if (report.clientId) {
+            client = clients.find(c => c.id === report.clientId);
+        } else if (report.projectId) {
+            const project = projects.find(p => p.id === report.projectId);
+            if (project) {
+                client = clients.find(c => c.id === project.clientId);
+            }
+        }
+
+        // Create professional HTML for the expense report
+        const htmlContent = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>Expense Report - ${report.title}</title>
+                <style>
+                    body {
+                        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                        line-height: 1.6;
+                        color: #333;
+                        max-width: 800px;
+                        margin: 0 auto;
+                        padding: 20px;
+                        background: white;
+                    }
+                    .header {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: flex-start;
+                        margin-bottom: 40px;
+                        border-bottom: 3px solid #2563eb;
+                        padding-bottom: 20px;
+                    }
+                    .company-info {
+                        flex: 1;
+                    }
+                    .company-name {
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: #2563eb;
+                        margin-bottom: 8px;
+                    }
+                    .company-details {
+                        font-size: 14px;
+                        color: #666;
+                        line-height: 1.4;
+                    }
+                    .report-info {
+                        text-align: right;
+                        flex: 1;
+                    }
+                    .report-title {
+                        font-size: 20px;
+                        font-weight: bold;
+                        color: #1f2937;
+                        margin-bottom: 10px;
+                    }
+                    .report-details {
+                        font-size: 14px;
+                        color: #666;
+                    }
+                    .client-section {
+                        margin-bottom: 30px;
+                        padding: 20px;
+                        background-color: #f8fafc;
+                        border-left: 4px solid #2563eb;
+                    }
+                    .client-title {
+                        font-size: 16px;
+                        font-weight: bold;
+                        color: #1f2937;
+                        margin-bottom: 10px;
+                    }
+                    .summary-section {
+                        margin-bottom: 30px;
+                        padding: 20px;
+                        background-color: #f0f9ff;
+                        border-radius: 8px;
+                        border: 1px solid #e0f2fe;
+                    }
+                    .summary-grid {
+                        display: grid;
+                        grid-template-columns: repeat(2, 1fr);
+                        gap: 20px;
+                        margin-bottom: 15px;
+                    }
+                    .summary-item {
+                        text-align: center;
+                    }
+                    .summary-label {
+                        font-size: 12px;
+                        color: #666;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        margin-bottom: 5px;
+                    }
+                    .summary-value {
+                        font-size: 18px;
+                        font-weight: bold;
+                        color: #1f2937;
+                    }
+                    .total-amount {
+                        text-align: center;
+                        padding-top: 15px;
+                        border-top: 2px solid #2563eb;
+                    }
+                    .total-label {
+                        font-size: 14px;
+                        color: #666;
+                        margin-bottom: 5px;
+                    }
+                    .total-value {
+                        font-size: 28px;
+                        font-weight: bold;
+                        color: #2563eb;
+                    }
+                    .expenses-table {
+                        width: 100%;
+                        border-collapse: collapse;
+                        margin: 20px 0;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                    }
+                    .expenses-table th {
+                        background-color: #2563eb;
+                        color: white;
+                        padding: 12px 8px;
+                        text-align: left;
+                        font-weight: 600;
+                        font-size: 12px;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+                    .expenses-table td {
+                        padding: 10px 8px;
+                        border-bottom: 1px solid #e5e7eb;
+                        font-size: 13px;
+                    }
+                    .expenses-table tbody tr:hover {
+                        background-color: #f8fafc;
+                    }
+                    .expenses-table tbody tr:nth-child(even) {
+                        background-color: #f9fafb;
+                    }
+                    .amount-cell {
+                        font-weight: bold;
+                        text-align: right;
+                    }
+                    .category-tag {
+                        display: inline-block;
+                        padding: 3px 8px;
+                        border-radius: 12px;
+                        font-size: 11px;
+                        font-weight: 500;
+                        background-color: #e0f2fe;
+                        color: #0369a1;
+                        text-transform: capitalize;
+                    }
+                    .status-badge {
+                        display: inline-block;
+                        padding: 4px 8px;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+                    .status-draft { background-color: #f3f4f6; color: #374151; }
+                    .status-submitted { background-color: #dbeafe; color: #1e40af; }
+                    .status-approved { background-color: #dcfce7; color: #166534; }
+                    .status-reimbursed { background-color: #f3e8ff; color: #7c3aed; }
+                    .status-rejected { background-color: #fee2e2; color: #dc2626; }
+                    .footer {
+                        margin-top: 40px;
+                        padding-top: 20px;
+                        border-top: 1px solid #e5e7eb;
+                        text-align: center;
+                        font-size: 12px;
+                        color: #6b7280;
+                    }
+                    @media print {
+                        body { margin: 0; padding: 15px; }
+                        .expenses-table { font-size: 11px; }
+                        .expenses-table th, .expenses-table td { padding: 6px 4px; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="company-info">
+                        <div class="company-name">${billerInfo.name || 'Your Company'}</div>
+                        <div class="company-details">
+                            ${billerInfo.address ? `${billerInfo.address}<br>` : ''}
+                            ${billerInfo.email ? `Email: ${billerInfo.email}<br>` : ''}
+                            ${billerInfo.phone ? `Phone: ${billerInfo.phone}<br>` : ''}
+                            ${billerInfo.website ? `Website: ${billerInfo.website}` : ''}
+                        </div>
+                    </div>
+                    <div class="report-info">
+                        <div class="report-title">EXPENSE REPORT</div>
+                        <div class="report-details">
+                            <strong>Report #:</strong> ${report.id.slice(-8).toUpperCase()}<br>
+                            <strong>Generated:</strong> ${new Date().toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            })}<br>
+                            <strong>Period:</strong> ${formatDate(report.startDate)} - ${formatDate(report.endDate)}
+                        </div>
+                    </div>
+                </div>
+
+                ${client ? `
+                <div class="client-section">
+                    <div class="client-title">Report For:</div>
+                    <strong>${client.name}</strong><br>
+                    ${client.contactName ? `Contact: ${client.contactName}<br>` : ''}
+                    ${client.contactEmail ? `Email: ${client.contactEmail}<br>` : ''}
+                    ${client.billingAddress ? client.billingAddress : ''}
+                </div>
+                ` : ''}
+
+                <div class="summary-section">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="summary-label">Total Expenses</div>
+                            <div class="summary-value">${reportExpenses.length}</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">Status</div>
+                            <div class="summary-value">
+                                <span class="status-badge status-${report.status.toLowerCase()}">${report.status}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="total-amount">
+                        <div class="total-label">Total Amount</div>
+                        <div class="total-value">${formatCurrency(report.totalAmount, report.currency)}</div>
+                    </div>
+                </div>
+
+                <h3 style="color: #1f2937; margin-bottom: 15px; font-size: 18px;">Expense Details</h3>
+                <table class="expenses-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Description</th>
+                            <th>Category</th>
+                            <th>Vendor</th>
+                            <th>Project</th>
+                            <th style="text-align: right;">Amount</th>
+                            <th>Receipts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${reportExpenses.map(expense => {
+                            const project = projects.find(p => p.id === expense.projectId);
+                            return `
+                            <tr>
+                                <td>${formatDate(expense.date)}</td>
+                                <td>
+                                    <strong>${expense.description}</strong>
+                                    ${expense.notes ? `<br><small style="color: #6b7280;">${expense.notes}</small>` : ''}
+                                </td>
+                                <td><span class="category-tag">${expense.category}</span></td>
+                                <td>${expense.vendor || '-'}</td>
+                                <td>${project ? project.name : 'No Project'}</td>
+                                <td class="amount-cell">${formatCurrency(expense.amount, expense.currency)}</td>
+                                <td style="text-align: center;">${expense.receipts.length > 0 ? `✓ (${expense.receipts.length})` : '-'}</td>
+                            </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+
+                ${report.notes ? `
+                <div style="margin-top: 30px; padding: 15px; background-color: #f9fafb; border-left: 4px solid #6b7280;">
+                    <strong style="color: #374151;">Notes:</strong><br>
+                    ${report.notes}
+                </div>
+                ` : ''}
+
+                <div class="footer">
+                    <p>This expense report was generated by ProTracker on ${new Date().toLocaleString()}</p>
+                    ${billerInfo.name ? `<p>© ${new Date().getFullYear()} ${billerInfo.name}. All rights reserved.</p>` : ''}
+                </div>
+            </body>
+            </html>
+        `;
+
+        // Create and download PDF
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            
+            // Wait for content to load then trigger print
+            printWindow.onload = () => {
+                setTimeout(() => {
+                    printWindow.print();
+                    // Close the window after printing (optional)
+                    setTimeout(() => {
+                        printWindow.close();
+                    }, 1000);
+                }, 100);
+            };
+        } else {
+            // Fallback: create a blob and download
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `expense-report-${report.title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').toLowerCase()}.html`;
+            link.click();
+            URL.revokeObjectURL(url);
         }
     };
 
@@ -1037,9 +1363,16 @@ export default function Expenses() {
                                             <Button
                                                 size="sm"
                                                 variant="secondary"
-                                                onClick={() => exportExpenseReport(report)}
+                                                onClick={() => exportExpenseReport(report, 'csv')}
                                             >
-                                                Export
+                                                Export CSV
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant="secondary"
+                                                onClick={() => exportExpenseReport(report, 'pdf')}
+                                            >
+                                                Export PDF
                                             </Button>
                                             <Button
                                                 size="sm"
