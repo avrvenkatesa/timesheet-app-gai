@@ -636,7 +636,18 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
 
 // --- Main Component ---
 export default function TimeEntries() {
-    const { timeEntries, projects, clients, addTimeEntry, deleteTimeEntry, updateTimeEntry } = useAppContext();
+    const { timeEntries, projects, clients, addTimeEntry, deleteTimeEntry, updateTimeEntry, projectPhases } = useAppContext();
+    
+    // Defensive checks to prevent crashes
+    if (!timeEntries || !projects || !clients) {
+        return (
+            <div className="flex items-center justify-center min-h-[50vh]">
+                <div className="text-center">
+                    <p className="text-slate-600">Loading time entries...</p>
+                </div>
+            </div>
+        );
+    }
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
     const [editEntry, setEditEntry] = useState<TimeEntry | undefined>();
@@ -793,13 +804,18 @@ export default function TimeEntries() {
 
     // Filter entries
     const filteredEntries = useMemo(() => {
-        return timeEntries.filter(entry => {
-            if (filters.dateFrom && entry.date < filters.dateFrom) return false;
-            if (filters.dateTo && entry.date > filters.dateTo) return false;
-            if (filters.projectId && entry.projectId !== filters.projectId) return false;
-            if (filters.billableOnly && !entry.isBillable) return false;
-            return true;
-        });
+        try {
+            return timeEntries.filter(entry => {
+                if (filters.dateFrom && entry.date < filters.dateFrom) return false;
+                if (filters.dateTo && entry.date > filters.dateTo) return false;
+                if (filters.projectId && entry.projectId !== filters.projectId) return false;
+                if (filters.billableOnly && !entry.isBillable) return false;
+                return true;
+            });
+        } catch (error) {
+            console.error('Error filtering entries:', error);
+            return [];
+        }
     }, [timeEntries, filters]);
 
     const formatCurrency = (amount: number, currency: string) => {
@@ -948,13 +964,14 @@ export default function TimeEntries() {
                             </thead>
                             <tbody>
                                {filteredEntries.map(entry => {
-                                   const project = projects.find(p => p.id === entry.projectId);
-                                   const client = project ? clients.find(c => c.id === project.clientId) : null;
-                                   const phase = entry.phaseId ? projectPhases.find(p => p.id === entry.phaseId) : null;
-                                   const billableAmount = (entry.isBillable && project) ? entry.hours * project.hourlyRate : 0;
+                                   try {
+                                       const project = projects.find(p => p.id === entry.projectId);
+                                       const client = project ? clients.find(c => c.id === project.clientId) : null;
+                                       const phase = entry.phaseId && projectPhases ? projectPhases.find(p => p.id === entry.phaseId) : null;
+                                       const billableAmount = (entry.isBillable && project) ? entry.hours * project.hourlyRate : 0;
 
                                    return (
-                                     <tr key={entry.id} className={`bg-white border-b hover:bg-slate-50 ${selectedEntries.has(entry.id) ? 'bg-blue-50' : ''}`}>
+                                         <tr key={entry.id} className={`bg-white border-b hover:bg-slate-50 ${selectedEntries.has(entry.id) ? 'bg-blue-50' : ''}`}>
                                        <td className="px-6 py-4">
                                          <input
                                            type="checkbox"
@@ -1024,7 +1041,17 @@ export default function TimeEntries() {
                                           </div>
                                        </td>
                                     </tr>
-                                   );
+                                       );
+                                   } catch (rowError) {
+                                       console.error('Error rendering table row for entry:', entry.id, rowError);
+                                       return (
+                                           <tr key={entry.id} className="bg-red-50 border-b">
+                                               <td colSpan={11} className="px-6 py-4 text-center text-red-600">
+                                                   Error rendering entry: {entry.id}
+                                               </td>
+                                           </tr>
+                                       );
+                                   }
                                })}
                             </tbody>
                         </table>

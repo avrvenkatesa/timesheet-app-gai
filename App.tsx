@@ -938,6 +938,7 @@ export default function App() {
 
     const renderView = () => {
         try {
+            console.log('Rendering view:', view);
             switch (view) {
                 case 'dashboard':
                     return <Dashboard setView={setView} />;
@@ -957,6 +958,7 @@ export default function App() {
                     return <Settings />;
                 default:
                     console.log('Unknown view:', view, 'redirecting to dashboard');
+                    setView('dashboard');
                     return <Dashboard setView={setView} />;
             }
         } catch (error) {
