@@ -83,16 +83,28 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
 
     const getMonthlyRevenue = () => {
         const billableEntries = thisMonthEntries.filter(e => e.isBillable);
-        let totalRevenue = 0;
+        const amountByCurrency: { [key: string]: number } = {};
 
         billableEntries.forEach(entry => {
             const project = projects.find(p => p.id === entry.projectId);
             if (project) {
-                totalRevenue += entry.hours * project.hourlyRate;
+                const amount = entry.hours * project.hourlyRate;
+                if (amountByCurrency[project.currency]) {
+                    amountByCurrency[project.currency] += amount;
+                } else {
+                    amountByCurrency[project.currency] = amount;
+                }
             }
         });
 
-        return totalRevenue;
+        return Object.entries(amountByCurrency).map(([currency, amount]) => {
+            try {
+                if (!currency) return amount.toFixed(2);
+                return new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+            } catch (e) {
+                return `${amount.toFixed(2)} ${currency}`;
+            }
+        }).join(' + ');
     };
 
     return (
@@ -107,7 +119,7 @@ export default function Dashboard({ setView }: { setView: React.Dispatch<React.S
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 lg:gap-6">
                 <StatCard title="Hours Logged (Week)" value={getTotalHours(thisWeekEntries)} unit="hrs" />
                 <StatCard title="Billable Hours (Week)" value={getBillableHours(thisWeekEntries)} unit="hrs" />
-                <StatCard title="Monthly Revenue" value={`$${getMonthlyRevenue().toFixed(0)}`} unit="" />
+                <StatCard title="Monthly Revenue" value={getMonthlyRevenue() || '$0.00'} unit="" />
                 <StatCard title="Total Unbilled" value={getUnbilledAmount() || '$0.00'} unit="" />
                 <StatCard title="Project Completion" value={`${getProjectCompletionRate().toFixed(1)}%`} unit="" />
             </div>
