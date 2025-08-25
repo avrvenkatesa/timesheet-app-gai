@@ -366,10 +366,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             // This provides a working solution while Object Storage integration is being set up
             const timestamp = Date.now();
             const filename = `receipts/${expenseId}/${timestamp}_${file.name}`;
-            
+
             // Create a blob URL for the file that can be used for display
             const blobUrl = URL.createObjectURL(file);
-            
+
             // Create receipt record
             const receipt = {
                 id: generateId(),
@@ -381,14 +381,14 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 url: blobUrl, // Store the blob URL for local access
                 ocrData: undefined // OCR processing can be added later
             };
-            
+
             // Update expense with new receipt
             setExpenses(prev => prev.map(expense => 
                 expense.id === expenseId 
                     ? { ...expense, receipts: [...expense.receipts, receipt] }
                     : expense
             ));
-            
+
             console.log('Receipt uploaded successfully:', filename);
         } catch (error) {
             console.error('Receipt upload failed:', error);
@@ -401,7 +401,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             // Find the receipt to get its storage path
             let receiptToDelete = null;
             let expenseWithReceipt = null;
-            
+
             for (const expense of expenses) {
                 const receipt = expense.receipts.find(r => r.id === receiptId);
                 if (receipt) {
@@ -410,12 +410,12 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                     break;
                 }
             }
-            
+
             if (!receiptToDelete || !expenseWithReceipt) {
                 console.error('Receipt not found with ID:', receiptId);
                 throw new Error('Receipt not found');
             }
-            
+
             // Revoke blob URL to free memory if it's a blob URL
             try {
                 if (receiptToDelete.url && receiptToDelete.url.startsWith('blob:')) {
@@ -425,7 +425,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                 console.warn('Could not revoke blob URL:', urlError);
                 // Continue with deletion even if URL revocation fails
             }
-            
+
             // Update expense to remove receipt
             setExpenses(prev => prev.map(expense => 
                 expense.id === expenseWithReceipt.id 
@@ -435,7 +435,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
                       }
                     : expense
             ));
-            
+
             console.log('Receipt deleted successfully:', receiptToDelete.fileName);
             return true;
         } catch (error) {
@@ -450,7 +450,7 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             if (receiptPath.startsWith('blob:')) {
                 return receiptPath;
             }
-            
+
             // For other paths, we'll need to implement proper storage integration
             // For now, return the path as-is
             return receiptPath;
@@ -481,21 +481,55 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         });
 
         const totalExpenses = filteredExpenses.length;
-        const totalAmount = filteredExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+        
+        // Calculate totals and averages, considering currencies
+        const amountsByCurrency: { [currency: string]: number } = {};
+        filteredExpenses.forEach(expense => {
+            amountsByCurrency[expense.currency] = (amountsByCurrency[expense.currency] || 0) + expense.amount;
+        });
+
+        const totalAmount = Object.values(amountsByCurrency).reduce((sum, amount) => sum + amount, 0);
         const averageAmount = totalExpenses > 0 ? totalAmount / totalExpenses : 0;
 
-        const byCategory: { [key: string]: number } = {};
-        const byStatus: { [key: string]: number } = {};
-
+        const totalAmountByCurrency: { [currency: string]: number } = {};
         filteredExpenses.forEach(expense => {
-            byCategory[expense.category] = (byCategory[expense.category] || 0) + expense.amount;
-            byStatus[expense.status] = (byStatus[expense.status] || 0) + expense.amount;
+            totalAmountByCurrency[expense.currency] = (totalAmountByCurrency[expense.currency] || 0) + expense.amount;
+        });
+
+        const averageAmountByCurrency: { [currency: string]: number } = {};
+        for (const currency in totalAmountByCurrency) {
+            const totalForCurrency = totalAmountByCurrency[currency];
+            const countForCurrency = filteredExpenses.filter(e => e.currency === currency).length;
+            averageAmountByCurrency[currency] = countForCurrency > 0 ? totalForCurrency / countForCurrency : 0;
+        }
+
+
+        // Group by category with currency awareness
+        const byCategory: {[key: string]: {[key: string]: number}} = {};
+        filteredExpenses.forEach(expense => {
+            if (!byCategory[expense.category]) {
+                byCategory[expense.category] = {};
+            }
+            const currency = expense.currency;
+            byCategory[expense.category][currency] = (byCategory[expense.category][currency] || 0) + expense.amount;
+        });
+
+        // Group by status with currency awareness
+        const byStatus: {[key: string]: {[key: string]: number}} = {};
+        filteredExpenses.forEach(expense => {
+            if (!byStatus[expense.status]) {
+                byStatus[expense.status] = {};
+            }
+            const currency = expense.currency;
+            byStatus[expense.status][currency] = (byStatus[expense.status][currency] || 0) + expense.amount;
         });
 
         return {
             totalExpenses,
-            totalAmount,
-            averageAmount,
+            totalAmount, // Legacy field for backward compatibility
+            averageAmount, // Legacy field for backward compatibility
+            totalAmountByCurrency,
+            averageAmountByCurrency,
             byCategory,
             byStatus
         };
@@ -790,7 +824,7 @@ const TimeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-
 const FolderIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>;
 const InvoiceIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>;
 const DashboardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>;
-const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0118.49 9.51l1.106.276a1 1 0 01.894 1.447l.276 1.106a1 1 0 010 1.788l-1.106.276a1 1 0 01-.49 1.491l1.106.276a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49.49l-.276 1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49-.49l-.276-1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
+const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m1-12a9 9 0 110 18 9 9 0 010-18zm10 3a1 1 0 011.447.894l.276 1.106A1 1 0 0118.49 9.51l1.106.276a1 1 0 01.894 1.447l.276 1.106a1 1 0 010 1.788l-1.106.276a1 1 0 01-.49 1.491l1.106.276a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49-.49l-.276-1.106a1 1 0 01-1.447.894l-1.106-.276a1 1 0 00-1.49-.49l-.276-1.106a1 1 0 01-1.788 0l-.276-1.106a1 1 0 00-1.49-.49l-1.106.276a1 1 0 01-1.447-.894l.276-1.106A1 1 0 005.51 14.49l-1.106-.276a1 1 0 01-.894-1.447l.276-1.106a1 1 0 00-.49-1.49l-1.106-.276a1 1 0 010-1.788l1.106-.276a1 1 0 00.49-1.49L3.1 6.347a1 1 0 01.894-1.447l1.106.276a1 1 0 001.49-.49l.276-1.106A1 1 0 018 3.01z" /></svg>
 const SettingsIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>;
 
 
@@ -851,7 +885,7 @@ class ErrorBoundary extends React.Component<
             if (Fallback) {
                 return <Fallback error={this.state.error!} resetError={() => this.setState({ hasError: false, error: null })} />;
             }
-            
+
             return (
                 <div className="flex items-center justify-center min-h-screen bg-slate-100">
                     <div className="text-center p-8 bg-white rounded-lg shadow-lg max-w-md">

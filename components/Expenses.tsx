@@ -498,13 +498,27 @@ const ExpenseAnalytics = () => {
                     <Card>
                         <CardContent className="p-4">
                             <h4 className="text-sm font-medium text-gray-500">Total Amount</h4>
-                            <p className="text-2xl font-bold">${analytics.totalAmount.toFixed(2)}</p>
+                            <div className="text-lg font-bold space-y-1">
+                                {Object.entries(analytics.totalAmountByCurrency).map(([currency, amount]) => (
+                                    <div key={currency}>{formatCurrency(amount, currency)}</div>
+                                ))}
+                                {Object.keys(analytics.totalAmountByCurrency).length === 0 && (
+                                    <div className="text-2xl">$0.00</div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-4">
                             <h4 className="text-sm font-medium text-gray-500">Average Amount</h4>
-                            <p className="text-2xl font-bold">${analytics.averageAmount.toFixed(2)}</p>
+                            <div className="text-lg font-bold space-y-1">
+                                {Object.entries(analytics.averageAmountByCurrency).map(([currency, amount]) => (
+                                    <div key={currency}>{formatCurrency(amount, currency)}</div>
+                                ))}
+                                {Object.keys(analytics.averageAmountByCurrency).length === 0 && (
+                                    <div className="text-2xl">$0.00</div>
+                                )}
+                            </div>
                         </CardContent>
                     </Card>
                 </div>
@@ -513,10 +527,16 @@ const ExpenseAnalytics = () => {
                 <div>
                     <h4 className="font-medium mb-3">Expenses by Category</h4>
                     <div className="space-y-2">
-                        {Object.entries(analytics.byCategory).map(([category, amount]) => (
-                            <div key={category} className="flex justify-between items-center">
+                        {Object.entries(analytics.byCategory).map(([category, amounts]) => (
+                            <div key={category} className="flex justify-between items-start">
                                 <span>{category}</span>
-                                <span className="font-medium">${amount.toFixed(2)}</span>
+                                <div className="text-right">
+                                    {Object.entries(amounts).map(([currency, amount]) => (
+                                        <div key={currency} className="font-medium">
+                                            {formatCurrency(amount, currency)}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -526,10 +546,16 @@ const ExpenseAnalytics = () => {
                 <div>
                     <h4 className="font-medium mb-3">Expenses by Status</h4>
                     <div className="space-y-2">
-                        {Object.entries(analytics.byStatus).map(([status, amount]) => (
-                            <div key={status} className="flex justify-between items-center">
+                        {Object.entries(analytics.byStatus).map(([status, amounts]) => (
+                            <div key={status} className="flex justify-between items-start">
                                 <span>{status}</span>
-                                <span className="font-medium">${amount.toFixed(2)}</span>
+                                <div className="text-right">
+                                    {Object.entries(amounts).map(([currency, amount]) => (
+                                        <div key={currency} className="font-medium">
+                                            {formatCurrency(amount, currency)}
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                         ))}
                     </div>
