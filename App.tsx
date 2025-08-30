@@ -806,6 +806,40 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         }));
     }, [payments]); // Run when payments change
 
+    // One-time data migration to fix payment status (runs once on app load)
+    useEffect(() => {
+        const migrationKey = 'payment_status_migration_v1';
+        const hasMigrated = localStorage.getItem(migrationKey);
+        
+        if (!hasMigrated) {
+            console.log('Running payment status migration...');
+            setInvoices(prev => {
+                const updated = prev.map(invoice => {
+                    const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
+                    const totalPaid = invoicePayments.reduce((sum, payment) => sum + payment.amount, 0);
+                    
+                    let paymentStatus = PaymentStatus.Unpaid;
+                    if (totalPaid >= invoice.totalAmount) {
+                        paymentStatus = PaymentStatus.Paid;
+                    } else if (totalPaid > 0) {
+                        paymentStatus = PaymentStatus.PartiallyPaid;
+                    }
+                    
+                    console.log(`Invoice ${invoice.invoiceNumber}: totalPaid=${totalPaid}, totalAmount=${invoice.totalAmount}, newStatus=${paymentStatus}`);
+                    
+                    return {
+                        ...invoice,
+                        paidAmount: totalPaid,
+                        paymentStatus: paymentStatus
+                    };
+                });
+                
+                localStorage.setItem(migrationKey, 'true');
+                return updated;
+            });
+        }
+    }, [payments, invoices]); // Run when data is available
+
     // Initial sync on app load
     useEffect(() => {
         triggerSync();
