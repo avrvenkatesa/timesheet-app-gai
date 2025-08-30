@@ -220,6 +220,8 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             ...invoiceData,
             id: generateId(),
             invoiceNumber: newInvoiceNumber,
+            paidAmount: 0,
+            paymentStatus: PaymentStatus.Unpaid,
         };
         setInvoices(prev => [...prev, newInvoice]);
         setTimeEntries(prev => prev.map(entry => 
@@ -232,9 +234,24 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
     const addPayment = (payment: Omit<Payment, 'id'>) => {
         const newPayment: Payment = { ...payment, id: generateId() };
         setPayments(prev => [...prev, newPayment]);
-        setInvoices(prev => prev.map(invoice => 
-            invoice.id === newPayment.invoiceId ? { ...invoice, status: InvoiceStatus.Paid } : invoice
-        ));
+        setInvoices(prev => prev.map(invoice => {
+            if (invoice.id === newPayment.invoiceId) {
+                const updatedPaidAmount = invoice.paidAmount + newPayment.amount;
+                const newPaymentStatus = updatedPaidAmount >= invoice.totalAmount 
+                    ? PaymentStatus.Paid 
+                    : updatedPaidAmount > 0 
+                        ? PaymentStatus.PartiallyPaid 
+                        : PaymentStatus.Unpaid;
+                
+                return { 
+                    ...invoice, 
+                    paidAmount: updatedPaidAmount,
+                    paymentStatus: newPaymentStatus,
+                    status: updatedPaidAmount >= invoice.totalAmount ? InvoiceStatus.Paid : invoice.status
+                };
+            }
+            return invoice;
+        }));
     };
     const removePayment = (paymentId: string) => setPayments(prev => prev.filter(p => p.id !== paymentId));
 
@@ -762,6 +779,32 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         const debounceTimer = setTimeout(autoSync, 2000); // Debounce for 2 seconds
         return () => clearTimeout(debounceTimer);
     }, [clients, projects, projectPhases, timeEntries, invoices, billerInfo, payments, recurringTemplates, invoiceReminders, exchangeRates, expenses]); // Added expenses to dependency array
+
+    // Fix payment status for existing invoices (data migration)
+    useEffect(() => {
+        setInvoices(prev => prev.map(invoice => {
+            const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
+            const totalPaid = invoicePayments.reduce((sum, payment) => sum + payment.amount, 0);
+            
+            let paymentStatus = PaymentStatus.Unpaid;
+            if (totalPaid >= invoice.totalAmount) {
+                paymentStatus = PaymentStatus.Paid;
+            } else if (totalPaid > 0) {
+                paymentStatus = PaymentStatus.PartiallyPaid;
+            }
+            
+            // Only update if values are different to prevent unnecessary re-renders
+            if (invoice.paidAmount !== totalPaid || invoice.paymentStatus !== paymentStatus) {
+                return {
+                    ...invoice,
+                    paidAmount: totalPaid,
+                    paymentStatus: paymentStatus
+                };
+            }
+            
+            return invoice;
+        }));
+    }, [payments]); // Run when payments change
 
     // Initial sync on app load
     useEffect(() => {
