@@ -370,7 +370,10 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         hours: editEntry?.hours || 0,
         isBillable: editEntry?.isBillable ?? true,
         startTime: editEntry?.startTime || '',
-        stopTime: editEntry?.stopTime || ''
+        stopTime: editEntry?.stopTime || '',
+        isMultiDay: editEntry?.isMultiDay || false,
+        startDate: editEntry?.startDate || editEntry?.date || new Date().toISOString().split('T')[0],
+        endDate: editEntry?.endDate || editEntry?.date || new Date().toISOString().split('T')[0]
     });
     const [validationError, setValidationError] = useState('');
 
@@ -381,86 +384,85 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         : [];
 
     // Check for overlapping time entries
-    const checkForOverlap = (date: string, startTime: string, endTime: string, excludeId?: string) => {
+    const checkForOverlap = (startDate: string, startTime: string, endDate: string, endTime: string, isMultiDay: boolean, excludeId?: string) => {
         if (!startTime || !endTime) return null;
 
-        const start = new Date(`${date}T${startTime}`);
-        const end = new Date(`${date}T${endTime}`);
+        const actualStartDate = isMultiDay ? startDate : formData.date;
+        const actualEndDate = isMultiDay ? endDate : formData.date;
+        
+        const start = new Date(`${actualStartDate}T${startTime}`);
+        const end = new Date(`${actualEndDate}T${endTime}`);
 
         if (start >= end) {
-            return 'End time must be after start time';
+            return isMultiDay ? 'End date/time must be after start date/time' : 'End time must be after start time';
         }
 
         const overlapping = timeEntries.find(entry => {
             if (excludeId && entry.id === excludeId) return false;
-            if (entry.date !== date) return false;
-
-            // For existing entries without specific times, we can't check overlap
-            // This is a simplified check - in a real app you'd store start/end times
-            return false;
+            
+            // For multi-day entries, check date range overlap
+            if (isMultiDay) {
+                const entryStart = entry.isMultiDay ? entry.startDate : entry.date;
+                const entryEnd = entry.isMultiDay ? entry.endDate : entry.date;
+                return actualStartDate <= (entryEnd || entryStart || '') && actualEndDate >= (entryStart || '');
+            } else {
+                return entry.date === actualStartDate;
+            }
         });
 
         return null;
     };
 
     // Calculate hours from start and stop time
-    const calculateHours = (startTime: string, stopTime: string) => {
+    const calculateHours = (startTime: string, stopTime: string, startDate?: string, endDate?: string) => {
         if (!startTime || !stopTime) return 0;
 
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        const [stopHour, stopMin] = stopTime.split(':').map(Number);
-
-        const startMinutes = startHour * 60 + startMin;
-        let stopMinutes = stopHour * 60 + stopMin;
-
-        // Handle case where stop time is next day
-        if (stopMinutes < startMinutes) {
-            stopMinutes += 24 * 60;
-        }
-
-        const hours = (stopMinutes - startMinutes) / 60;
-        // Round up to two decimals
+        const actualStartDate = startDate || formData.date;
+        const actualEndDate = endDate || formData.date;
+        
+        const start = new Date(`${actualStartDate}T${startTime}`);
+        const end = new Date(`${actualEndDate}T${stopTime}`);
+        
+        const diffMilliseconds = end.getTime() - start.getTime();
+        const hours = diffMilliseconds / (1000 * 60 * 60);
+        
+        // Round to two decimals
         return Math.ceil(hours * 100) / 100;
     };
 
     // Calculate expected stop time from start time and hours
-    const calculateStopTime = (startTime: string, hours: number) => {
-        if (!startTime || hours <= 0) return '';
+    const calculateStopTime = (startTime: string, hours: number, startDate?: string) => {
+        if (!startTime || hours <= 0) return { stopTime: '', endDate: startDate || formData.date };
 
-        const [startHour, startMin] = startTime.split(':').map(Number);
-        const startMinutes = startHour * 60 + startMin;
-        const endMinutes = startMinutes + (hours * 60);
+        const start = new Date(`${startDate || formData.date}T${startTime}`);
+        const endMilliseconds = start.getTime() + (hours * 60 * 60 * 1000);
+        const end = new Date(endMilliseconds);
         
-        const endHour = Math.floor(endMinutes / 60) % 24;
-        const endMin = Math.floor(endMinutes % 60);
+        const stopTime = `${end.getHours().toString().padStart(2, '0')}:${end.getMinutes().toString().padStart(2, '0')}`;
+        const endDate = end.toISOString().split('T')[0];
         
-        return `${endHour.toString().padStart(2, '0')}:${endMin.toString().padStart(2, '0')}`;
+        return { stopTime, endDate };
     };
 
     // Calculate expected start time from stop time and hours
-    const calculateStartTime = (stopTime: string, hours: number) => {
-        if (!stopTime || hours <= 0) return '';
+    const calculateStartTime = (stopTime: string, hours: number, endDate?: string) => {
+        if (!stopTime || hours <= 0) return { startTime: '', startDate: endDate || formData.date };
 
-        const [stopHour, stopMin] = stopTime.split(':').map(Number);
-        const stopMinutes = stopHour * 60 + stopMin;
-        const startMinutes = stopMinutes - (hours * 60);
+        const end = new Date(`${endDate || formData.date}T${stopTime}`);
+        const startMilliseconds = end.getTime() - (hours * 60 * 60 * 1000);
+        const start = new Date(startMilliseconds);
         
-        let actualStartMinutes = startMinutes;
-        if (actualStartMinutes < 0) {
-            actualStartMinutes += 24 * 60; // Previous day
-        }
+        const startTime = `${start.getHours().toString().padStart(2, '0')}:${start.getMinutes().toString().padStart(2, '0')}`;
+        const startDate = start.toISOString().split('T')[0];
         
-        const startHour = Math.floor(actualStartMinutes / 60) % 24;
-        const startMin = Math.floor(actualStartMinutes % 60);
-        
-        return `${startHour.toString().padStart(2, '0')}:${startMin.toString().padStart(2, '0')}`;
+        return { startTime, startDate };
     };
 
     // Validate time consistency
-    const validateTimeConsistency = (startTime: string, stopTime: string, hours: number) => {
+    const validateTimeConsistency = (startTime: string, stopTime: string, hours: number, startDate?: string, endDate?: string) => {
         if (!startTime || !stopTime || hours <= 0) return null;
         
-        const calculatedHours = calculateHours(startTime, stopTime);
+        const calculatedHours = calculateHours(startTime, stopTime, startDate, endDate);
         const tolerance = 0.01; // Allow small floating point differences
         
         if (Math.abs(calculatedHours - hours) > tolerance) {
@@ -475,9 +477,13 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         const updatedData = { ...formData, [name]: value };
 
         if (name === 'startTime' && updatedData.stopTime) {
-            updatedData.hours = calculateHours(value, updatedData.stopTime);
+            const startDate = updatedData.isMultiDay ? updatedData.startDate : updatedData.date;
+            const endDate = updatedData.isMultiDay ? updatedData.endDate : updatedData.date;
+            updatedData.hours = calculateHours(value, updatedData.stopTime, startDate, endDate);
         } else if (name === 'stopTime' && updatedData.startTime) {
-            updatedData.hours = calculateHours(updatedData.startTime, value);
+            const startDate = updatedData.isMultiDay ? updatedData.startDate : updatedData.date;
+            const endDate = updatedData.isMultiDay ? updatedData.endDate : updatedData.date;
+            updatedData.hours = calculateHours(updatedData.startTime, value, startDate, endDate);
         }
 
         setFormData(updatedData);
@@ -489,11 +495,21 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
 
         // If we have start time and hours, calculate stop time
         if (formData.startTime && hours > 0) {
-            updatedData.stopTime = calculateStopTime(formData.startTime, hours);
+            const startDate = formData.isMultiDay ? formData.startDate : formData.date;
+            const result = calculateStopTime(formData.startTime, hours, startDate);
+            updatedData.stopTime = result.stopTime;
+            if (formData.isMultiDay) {
+                updatedData.endDate = result.endDate;
+            }
         }
         // If we have stop time and hours, calculate start time
         else if (formData.stopTime && hours > 0) {
-            updatedData.startTime = calculateStartTime(formData.stopTime, hours);
+            const endDate = formData.isMultiDay ? formData.endDate : formData.date;
+            const result = calculateStartTime(formData.stopTime, hours, endDate);
+            updatedData.startTime = result.startTime;
+            if (formData.isMultiDay) {
+                updatedData.startDate = result.startDate;
+            }
         }
 
         setFormData(updatedData);
@@ -503,7 +519,26 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         const { name, value, type } = e.target;
         if (type === 'checkbox') {
             const { checked } = e.target as HTMLInputElement;
-            setFormData(prev => ({ ...prev, [name]: checked }));
+            if (name === 'isMultiDay') {
+                // When switching to multi-day mode, initialize dates
+                if (checked) {
+                    setFormData(prev => ({
+                        ...prev,
+                        [name]: checked,
+                        startDate: prev.startDate || prev.date,
+                        endDate: prev.endDate || prev.date
+                    }));
+                } else {
+                    // When switching back to single-day, use startDate as the main date
+                    setFormData(prev => ({
+                        ...prev,
+                        [name]: checked,
+                        date: prev.startDate || prev.date
+                    }));
+                }
+            } else {
+                setFormData(prev => ({ ...prev, [name]: checked }));
+            }
         } else if (name === 'hours') {
             handleHoursChange(e as React.ChangeEvent<HTMLInputElement>);
         } else {
@@ -516,7 +551,9 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         
         // Check for time overlap
         if (formData.startTime && formData.stopTime) {
-            const overlapError = checkForOverlap(formData.date, formData.startTime, formData.stopTime, editEntry?.id);
+            const startDate = formData.isMultiDay ? formData.startDate : formData.date;
+            const endDate = formData.isMultiDay ? formData.endDate : formData.date;
+            const overlapError = checkForOverlap(startDate || formData.date, formData.startTime, endDate || formData.date, formData.stopTime, formData.isMultiDay || false, editEntry?.id);
             if (overlapError) {
                 error = overlapError;
             }
@@ -524,7 +561,9 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
 
         // Check for time consistency when all three values are present
         if (formData.startTime && formData.stopTime && formData.hours > 0) {
-            const consistencyError = validateTimeConsistency(formData.startTime, formData.stopTime, formData.hours);
+            const startDate = formData.isMultiDay ? formData.startDate : formData.date;
+            const endDate = formData.isMultiDay ? formData.endDate : formData.date;
+            const consistencyError = validateTimeConsistency(formData.startTime, formData.stopTime, formData.hours, startDate, endDate);
             if (consistencyError) {
                 error = consistencyError;
             }
@@ -580,13 +619,45 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
                 </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><Label htmlFor="date">Date</Label><Input id="date" name="date" type="date" value={formData.date || ''} onChange={handleChange} required /></div>
-                <div><Label htmlFor="hours">Hours</Label><Input id="hours" name="hours" type="number" step="0.01" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
+            {/* Multi-Day Toggle */}
+            <div className="flex items-center space-x-2 p-3 bg-blue-50 rounded-lg border">
+                <input 
+                    type="checkbox" 
+                    id="isMultiDay" 
+                    name="isMultiDay" 
+                    checked={formData.isMultiDay || false} 
+                    onChange={handleChange} 
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                />
+                <Label htmlFor="isMultiDay" className="text-sm font-medium text-blue-800">
+                    Enable Multi-Day Entry (for work spanning multiple days)
+                </Label>
             </div>
+
+            {/* Date Fields - Conditional based on multi-day mode */}
+            {formData.isMultiDay ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div><Label htmlFor="startDate">Start Date</Label><Input id="startDate" name="startDate" type="date" value={formData.startDate || ''} onChange={handleChange} required /></div>
+                    <div><Label htmlFor="endDate">End Date</Label><Input id="endDate" name="endDate" type="date" value={formData.endDate || ''} onChange={handleChange} required /></div>
+                    <div><Label htmlFor="hours">Total Hours</Label><Input id="hours" name="hours" type="number" step="0.01" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><Label htmlFor="date">Date</Label><Input id="date" name="date" type="date" value={formData.date || ''} onChange={handleChange} required /></div>
+                    <div><Label htmlFor="hours">Hours</Label><Input id="hours" name="hours" type="number" step="0.01" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
+                </div>
+            )}
+            
+            {/* Time Fields */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><Label htmlFor="startTime">Start Time</Label><Input id="startTime" name="startTime" type="time" value={formData.startTime || ''} onChange={handleTimeChange} /></div>
-                <div><Label htmlFor="stopTime">Stop Time</Label><Input id="stopTime" name="stopTime" type="time" value={formData.stopTime || ''} onChange={handleTimeChange} /></div>
+                <div>
+                    <Label htmlFor="startTime">{formData.isMultiDay ? 'Start Time' : 'Start Time'}</Label>
+                    <Input id="startTime" name="startTime" type="time" value={formData.startTime || ''} onChange={handleTimeChange} />
+                </div>
+                <div>
+                    <Label htmlFor="stopTime">{formData.isMultiDay ? 'End Time' : 'Stop Time'}</Label>
+                    <Input id="stopTime" name="stopTime" type="time" value={formData.stopTime || ''} onChange={handleTimeChange} />
+                </div>
             </div>
 
             {validationError && (

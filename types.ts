@@ -64,13 +64,17 @@ export interface TimeEntry {
   id: string;
   projectId: string;
   phaseId?: string; // Optional phase assignment
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD - primary date for single-day entries
   description: string;
   hours: number;
   startTime?: string; // HH:MM format
   stopTime?: string; // HH:MM format
   isBillable: boolean;
   invoiceId: string | null;
+  // Multi-day entry support
+  isMultiDay?: boolean; // Flag to enable multi-day mode
+  startDate?: string; // YYYY-MM-DD - for multi-day entries
+  endDate?: string; // YYYY-MM-DD - for multi-day entries
 }
 
 export enum RecurringFrequency {
