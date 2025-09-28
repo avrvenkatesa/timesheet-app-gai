@@ -460,9 +460,12 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         return { startTime, startDate };
     };
 
-    // Validate time consistency
-    const validateTimeConsistency = (startTime: string, stopTime: string, hours: number, startDate?: string, endDate?: string) => {
+    // Validate time consistency (only for single-day entries)
+    const validateTimeConsistency = (startTime: string, stopTime: string, hours: number, startDate?: string, endDate?: string, isMultiDay?: boolean) => {
         if (!startTime || !stopTime || hours <= 0) return null;
+        
+        // For multi-day entries, billable hours can be independent of elapsed time
+        if (isMultiDay) return null;
         
         const calculatedHours = calculateHours(startTime, stopTime, startDate, endDate);
         const tolerance = 0.01; // Allow small floating point differences
@@ -478,14 +481,17 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         const { name, value } = e.target;
         const updatedData = { ...formData, [name]: value };
 
-        if (name === 'startTime' && updatedData.stopTime) {
-            const startDate = updatedData.isMultiDay ? updatedData.startDate : updatedData.date;
-            const endDate = updatedData.isMultiDay ? updatedData.endDate : updatedData.date;
-            updatedData.hours = calculateHours(value, updatedData.stopTime, startDate, endDate);
-        } else if (name === 'stopTime' && updatedData.startTime) {
-            const startDate = updatedData.isMultiDay ? updatedData.startDate : updatedData.date;
-            const endDate = updatedData.isMultiDay ? updatedData.endDate : updatedData.date;
-            updatedData.hours = calculateHours(updatedData.startTime, value, startDate, endDate);
+        // Auto-calculate hours only for single-day entries
+        if (!updatedData.isMultiDay) {
+            if (name === 'startTime' && updatedData.stopTime) {
+                const startDate = updatedData.isMultiDay ? updatedData.startDate : updatedData.date;
+                const endDate = updatedData.isMultiDay ? updatedData.endDate : updatedData.date;
+                updatedData.hours = calculateHours(value, updatedData.stopTime, startDate, endDate);
+            } else if (name === 'stopTime' && updatedData.startTime) {
+                const startDate = updatedData.isMultiDay ? updatedData.startDate : updatedData.date;
+                const endDate = updatedData.isMultiDay ? updatedData.endDate : updatedData.date;
+                updatedData.hours = calculateHours(updatedData.startTime, value, startDate, endDate);
+            }
         }
 
         setFormData(updatedData);
@@ -565,7 +571,7 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         if (formData.startTime && formData.stopTime && formData.hours > 0) {
             const startDate = formData.isMultiDay ? formData.startDate : formData.date;
             const endDate = formData.isMultiDay ? formData.endDate : formData.date;
-            const consistencyError = validateTimeConsistency(formData.startTime, formData.stopTime, formData.hours, startDate, endDate);
+            const consistencyError = validateTimeConsistency(formData.startTime, formData.stopTime, formData.hours, startDate, endDate, formData.isMultiDay);
             if (consistencyError) {
                 error = consistencyError;
             }
@@ -641,7 +647,7 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div><Label htmlFor="startDate">Start Date</Label><Input id="startDate" name="startDate" type="date" value={formData.startDate || ''} onChange={handleChange} required /></div>
                     <div><Label htmlFor="endDate">End Date</Label><Input id="endDate" name="endDate" type="date" value={formData.endDate || ''} onChange={handleChange} required /></div>
-                    <div><Label htmlFor="hours">Total Hours</Label><Input id="hours" name="hours" type="number" step="0.01" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
+                    <div><Label htmlFor="hours">{formData.isMultiDay ? 'Billable Hours' : 'Total Hours'}</Label><Input id="hours" name="hours" type="number" step="0.01" min="0" value={formData.hours || ''} onChange={handleChange} required /></div>
                 </div>
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
