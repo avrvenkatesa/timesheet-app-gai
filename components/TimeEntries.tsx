@@ -397,20 +397,22 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
             return isMultiDay ? 'End date/time must be after start date/time' : 'End time must be after start time';
         }
 
+        // Check for overlapping entries by comparing time intervals
         const overlapping = timeEntries.find(entry => {
             if (excludeId && entry.id === excludeId) return false;
+            if (!entry.startTime || !entry.stopTime) return false; // Skip entries without times
             
-            // For multi-day entries, check date range overlap
-            if (isMultiDay) {
-                const entryStart = entry.isMultiDay ? entry.startDate : entry.date;
-                const entryEnd = entry.isMultiDay ? entry.endDate : entry.date;
-                return actualStartDate <= (entryEnd || entryStart || '') && actualEndDate >= (entryStart || '');
-            } else {
-                return entry.date === actualStartDate;
-            }
+            // Calculate existing entry's time interval
+            const existingStartDate = entry.isMultiDay ? entry.startDate : entry.date;
+            const existingEndDate = entry.isMultiDay ? entry.endDate : entry.date;
+            const existingStart = new Date(`${existingStartDate}T${entry.startTime}`);
+            const existingEnd = new Date(`${existingEndDate}T${entry.stopTime}`);
+            
+            // Check for time interval overlap: (start < existingEnd) && (end > existingStart)
+            return start < existingEnd && end > existingStart;
         });
 
-        return null;
+        return overlapping ? `Time overlaps with existing entry: ${overlapping.description}` : null;
     };
 
     // Calculate hours from start and stop time
@@ -427,7 +429,7 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         const hours = diffMilliseconds / (1000 * 60 * 60);
         
         // Round to two decimals
-        return Math.ceil(hours * 100) / 100;
+        return Math.round(hours * 100) / 100;
     };
 
     // Calculate expected stop time from start time and hours
@@ -570,7 +572,7 @@ const TimeEntryForm = ({ onSave, onCancel, editEntry, templates, onUseTemplate }
         }
 
         setValidationError(error);
-    }, [formData.startTime, formData.stopTime, formData.hours, formData.date, editEntry?.id]);
+    }, [formData.startTime, formData.stopTime, formData.hours, formData.date, formData.isMultiDay, formData.startDate, formData.endDate, editEntry?.id, timeEntries]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
