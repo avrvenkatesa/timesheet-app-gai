@@ -1,6 +1,6 @@
 import React, { useState, createContext, useContext, ReactNode, useEffect } from 'react';
 import type { Client, Project, TimeEntry, Invoice, BillerInfo, View, Payment, RecurringInvoiceTemplate, InvoiceReminder, ExchangeRate, ProjectTemplate, ClientNote, ProjectMilestone, ProjectPhase, PhaseAnalytics, Contract, Expense, BusinessInsight, PricingSuggestion } from './types';
-import { ProjectStatus, InvoiceStatus, Currency } from './types';
+import { ProjectStatus, InvoiceStatus, Currency, PaymentStatus } from './types';
 import { dataManager, type AppData } from './utils/dataManager';
 import Dashboard from './components/Dashboard';
 import ClientsProjects from './components/ClientsProjects';
