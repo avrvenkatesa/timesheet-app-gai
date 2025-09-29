@@ -1545,16 +1545,23 @@ export default function Expenses() {
                 </CardContent>
             </Card>
 
-            {/* Expense Analytics */}
-            <ExpenseAnalytics />
-
             {/* Expense Reports */}
-            {expenseReports.length > 0 && (
-                <Card>
-                    <CardHeader>
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-center">
                         <CardTitle>Expense Reports</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                        <Button onClick={() => setIsCreateReportModalOpen(true)}>
+                            Create Report
+                        </Button>
+                    </div>
+                </CardHeader>
+                <CardContent>
+                    {expenseReports.length === 0 ? (
+                        <div className="text-center py-8 text-gray-500">
+                            <p className="text-lg font-medium mb-2">No expense reports created yet</p>
+                            <p className="text-sm">Create your first expense report to organize and export your expenses</p>
+                        </div>
+                    ) : (
                         <div className="space-y-4">
                             {expenseReports.map(report => (
                                 <div key={report.id} className="border rounded-lg p-4">
@@ -1607,9 +1614,12 @@ export default function Expenses() {
                                 </div>
                             ))}
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                    )}
+                </CardContent>
+            </Card>
+
+            {/* Expense Analytics */}
+            <ExpenseAnalytics />
 
             {/* Expenses List */}
             <Card>
