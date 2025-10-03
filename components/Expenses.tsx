@@ -610,6 +610,12 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
         }, 0);
     }, [formData.selectedExpenseIds, expenses]);
 
+    const reportCurrency = useMemo(() => {
+        const selectedExpenses = expenses.filter(e => formData.selectedExpenseIds.includes(e.id));
+        const currencies = [...new Set(selectedExpenses.map(e => e.currency))];
+        return currencies[0] || Currency.USD;
+    }, [formData.selectedExpenseIds, expenses]);
+
     const handleExpenseToggle = (expenseId: string) => {
         setFormData(prev => ({
             ...prev,
@@ -808,7 +814,7 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
                         Total Expenses: {formData.selectedExpenseIds.length}
                     </p>
                     <p className="text-blue-800 text-lg font-semibold">
-                        Total Amount: {formatCurrency(totalAmount, Currency.USD)}
+                        Total Amount: {formatCurrency(totalAmount, reportCurrency)}
                     </p>
                 </div>
             )}
