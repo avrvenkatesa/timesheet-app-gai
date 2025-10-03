@@ -630,6 +630,18 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
             return;
         }
 
+        // Get currency from selected expenses
+        const selectedExpenses = expenses.filter(e => formData.selectedExpenseIds.includes(e.id));
+        const currencies = [...new Set(selectedExpenses.map(e => e.currency))];
+        
+        // Check if all expenses have the same currency
+        if (currencies.length > 1) {
+            alert(`Selected expenses have different currencies: ${currencies.join(', ')}. Please select expenses with the same currency.`);
+            return;
+        }
+
+        const reportCurrency = currencies[0] || Currency.USD;
+
         const reportData = {
             title: formData.title,
             startDate: formData.startDate,
@@ -638,7 +650,7 @@ const ExpenseReportForm = ({ onSave, onCancel }: {
             clientId: formData.clientId || undefined,
             expenseIds: formData.selectedExpenseIds,
             totalAmount,
-            currency: Currency.USD, // Default currency, could be made configurable
+            currency: reportCurrency,
             status: 'draft' as const,
             notes: formData.notes || undefined
         };
