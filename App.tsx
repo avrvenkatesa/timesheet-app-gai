@@ -877,6 +877,51 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [payments, invoices]); // Run when data is available
 
+    // One-time data migration for TDS fields (runs once on app load)
+    useEffect(() => {
+        const migrationKey = 'tds_fields_migration_v1';
+        const hasMigrated = localStorage.getItem(migrationKey);
+        
+        if (!hasMigrated) {
+            console.log('Running TDS fields migration...');
+            
+            // Migrate invoices
+            setInvoices(prev => {
+                const updated = prev.map(invoice => {
+                    if (invoice.tdsApplicable === undefined) {
+                        return {
+                            ...invoice,
+                            tdsApplicable: false,
+                            tdsRate: undefined,
+                            tdsAmount: undefined,
+                            tdsReceived: 0
+                        };
+                    }
+                    return invoice;
+                });
+                return updated;
+            });
+            
+            // Migrate payments
+            setPayments(prev => {
+                const updated = prev.map(payment => {
+                    if (payment.tdsDeducted === undefined) {
+                        return {
+                            ...payment,
+                            tdsDeducted: undefined,
+                            tdsCertificateRef: undefined
+                        };
+                    }
+                    return payment;
+                });
+                return updated;
+            });
+            
+            localStorage.setItem(migrationKey, 'true');
+            console.log('TDS fields migration completed');
+        }
+    }, [invoices, payments]); // Run when data is available
+
     // Initial sync on app load
     useEffect(() => {
         triggerSync();
