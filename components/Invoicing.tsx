@@ -39,6 +39,8 @@ const PaymentModal = ({ invoice, onClose }: { invoice: Invoice, onClose: () => v
     const [paymentMethod, setPaymentMethod] = useState('');
     const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
     const [notes, setNotes] = useState('');
+    const [tdsDeducted, setTdsDeducted] = useState(invoice.tdsApplicable && invoice.tdsAmount ? invoice.tdsAmount.toString() : '0');
+    const [tdsCertificateRef, setTdsCertificateRef] = useState('');
 
     const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
     const remainingAmount = invoice.totalAmount - invoice.paidAmount;
@@ -60,7 +62,9 @@ const PaymentModal = ({ invoice, onClose }: { invoice: Invoice, onClose: () => v
             currency: invoice.currency,
             paymentDate,
             paymentMethod,
-            notes
+            notes,
+            tdsDeducted: invoice.tdsApplicable ? parseFloat(tdsDeducted) || 0 : undefined,
+            tdsCertificateRef: invoice.tdsApplicable && tdsCertificateRef ? tdsCertificateRef : undefined
         });
 
         onClose();
@@ -116,6 +120,40 @@ const PaymentModal = ({ invoice, onClose }: { invoice: Invoice, onClose: () => v
                         placeholder="Additional notes about the payment"
                     />
                 </div>
+
+                {invoice.tdsApplicable && (
+                    <div className="bg-blue-50 p-4 rounded-lg space-y-3 border border-blue-200">
+                        <h4 className="font-medium text-blue-900">TDS Details</h4>
+                        <div>
+                            <Label htmlFor="tdsDeducted">TDS Amount Deducted</Label>
+                            <Input
+                                type="number"
+                                id="tdsDeducted"
+                                value={tdsDeducted}
+                                onChange={(e) => setTdsDeducted(e.target.value)}
+                                step="0.01"
+                            />
+                            <p className="text-xs text-blue-700 mt-1">
+                                Expected TDS: {formatCurrency(invoice.tdsAmount || 0, invoice.currency)} ({invoice.tdsRate}%)
+                            </p>
+                        </div>
+                        <div>
+                            <Label htmlFor="tdsCertificateRef">TDS Certificate Reference (Optional)</Label>
+                            <Input
+                                type="text"
+                                id="tdsCertificateRef"
+                                value={tdsCertificateRef}
+                                onChange={(e) => setTdsCertificateRef(e.target.value)}
+                                placeholder="e.g., TDS/2024/12345"
+                            />
+                        </div>
+                        <div className="text-sm text-blue-800">
+                            <p>Cash Received: {formatCurrency(parseFloat(amount) || 0, invoice.currency)}</p>
+                            <p>TDS Withheld: {formatCurrency(parseFloat(tdsDeducted) || 0, invoice.currency)}</p>
+                            <p className="font-medium">Total Payment: {formatCurrency((parseFloat(amount) || 0) + (parseFloat(tdsDeducted) || 0), invoice.currency)}</p>
+                        </div>
+                    </div>
+                )}
 
                 {invoicePayments.length > 0 && (
                     <div>
