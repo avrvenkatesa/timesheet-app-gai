@@ -237,23 +237,60 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
         setInvoices(prev => prev.map(invoice => {
             if (invoice.id === newPayment.invoiceId) {
                 const updatedPaidAmount = invoice.paidAmount + newPayment.amount;
-                const newPaymentStatus = updatedPaidAmount >= invoice.totalAmount 
+                const updatedTdsReceived = (invoice.tdsReceived || 0) + (newPayment.tdsAmount || 0);
+                
+                // Calculate total settled (cash + TDS received)
+                const totalSettled = updatedPaidAmount + updatedTdsReceived;
+                
+                // Determine payment status based on total settled vs invoice total
+                const newPaymentStatus = totalSettled >= invoice.totalAmount 
                     ? PaymentStatus.Paid 
-                    : updatedPaidAmount > 0 
+                    : totalSettled > 0 
                         ? PaymentStatus.PartiallyPaid 
                         : PaymentStatus.Unpaid;
                 
                 return { 
                     ...invoice, 
                     paidAmount: updatedPaidAmount,
+                    tdsReceived: updatedTdsReceived,
                     paymentStatus: newPaymentStatus,
-                    status: updatedPaidAmount >= invoice.totalAmount ? InvoiceStatus.Paid : invoice.status
+                    status: totalSettled >= invoice.totalAmount ? InvoiceStatus.Paid : invoice.status
                 };
             }
             return invoice;
         }));
     };
-    const removePayment = (paymentId: string) => setPayments(prev => prev.filter(p => p.id !== paymentId));
+    const removePayment = (paymentId: string) => {
+        const paymentToRemove = payments.find(p => p.id === paymentId);
+        if (!paymentToRemove) return;
+        
+        setPayments(prev => prev.filter(p => p.id !== paymentId));
+        setInvoices(prev => prev.map(invoice => {
+            if (invoice.id === paymentToRemove.invoiceId) {
+                const updatedPaidAmount = invoice.paidAmount - paymentToRemove.amount;
+                const updatedTdsReceived = (invoice.tdsReceived || 0) - (paymentToRemove.tdsAmount || 0);
+                
+                // Calculate total settled (cash + TDS received)
+                const totalSettled = updatedPaidAmount + updatedTdsReceived;
+                
+                // Determine payment status based on total settled vs invoice total
+                const newPaymentStatus = totalSettled >= invoice.totalAmount 
+                    ? PaymentStatus.Paid 
+                    : totalSettled > 0 
+                        ? PaymentStatus.PartiallyPaid 
+                        : PaymentStatus.Unpaid;
+                
+                return { 
+                    ...invoice, 
+                    paidAmount: Math.max(0, updatedPaidAmount),
+                    tdsReceived: Math.max(0, updatedTdsReceived),
+                    paymentStatus: newPaymentStatus,
+                    status: totalSettled >= invoice.totalAmount ? InvoiceStatus.Paid : invoice.status
+                };
+            }
+            return invoice;
+        }));
+    };
 
     const addRecurringTemplate = (template: Omit<RecurringInvoiceTemplate, 'id'>) => {
         const newTemplate: RecurringInvoiceTemplate = { ...template, id: generateId() };
