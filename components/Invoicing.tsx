@@ -39,7 +39,7 @@ const PaymentModal = ({ invoice, onClose }: { invoice: Invoice, onClose: () => v
     const [paymentMethod, setPaymentMethod] = useState('');
     const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
     const [notes, setNotes] = useState('');
-    const [tdsDeducted, setTdsDeducted] = useState(invoice.tdsApplicable && invoice.tdsAmount ? invoice.tdsAmount.toString() : '0');
+    const [tdsAmount, setTdsAmount] = useState(invoice.tdsApplicable && invoice.tdsAmount ? invoice.tdsAmount.toString() : '0');
     const [tdsCertificateRef, setTdsCertificateRef] = useState('');
 
     const invoicePayments = payments.filter(p => p.invoiceId === invoice.id);
@@ -63,7 +63,7 @@ const PaymentModal = ({ invoice, onClose }: { invoice: Invoice, onClose: () => v
             paymentDate,
             paymentMethod,
             notes,
-            tdsDeducted: invoice.tdsApplicable ? parseFloat(tdsDeducted) || 0 : undefined,
+            tdsAmount: invoice.tdsApplicable ? parseFloat(tdsAmount) || 0 : undefined,
             tdsCertificateRef: invoice.tdsApplicable && tdsCertificateRef ? tdsCertificateRef : undefined
         });
 
@@ -125,12 +125,12 @@ const PaymentModal = ({ invoice, onClose }: { invoice: Invoice, onClose: () => v
                     <div className="bg-blue-50 p-4 rounded-lg space-y-3 border border-blue-200">
                         <h4 className="font-medium text-blue-900">TDS Details</h4>
                         <div>
-                            <Label htmlFor="tdsDeducted">TDS Amount Deducted</Label>
+                            <Label htmlFor="tdsAmount">TDS Amount Deducted</Label>
                             <Input
                                 type="number"
-                                id="tdsDeducted"
-                                value={tdsDeducted}
-                                onChange={(e) => setTdsDeducted(e.target.value)}
+                                id="tdsAmount"
+                                value={tdsAmount}
+                                onChange={(e) => setTdsAmount(e.target.value)}
                                 step="0.01"
                             />
                             <p className="text-xs text-blue-700 mt-1">
@@ -149,8 +149,8 @@ const PaymentModal = ({ invoice, onClose }: { invoice: Invoice, onClose: () => v
                         </div>
                         <div className="text-sm text-blue-800">
                             <p>Cash Received: {formatCurrency(parseFloat(amount) || 0, invoice.currency)}</p>
-                            <p>TDS Withheld: {formatCurrency(parseFloat(tdsDeducted) || 0, invoice.currency)}</p>
-                            <p className="font-medium">Total Payment: {formatCurrency((parseFloat(amount) || 0) + (parseFloat(tdsDeducted) || 0), invoice.currency)}</p>
+                            <p>TDS Withheld: {formatCurrency(parseFloat(tdsAmount) || 0, invoice.currency)}</p>
+                            <p className="font-medium">Total Payment: {formatCurrency((parseFloat(amount) || 0) + (parseFloat(tdsAmount) || 0), invoice.currency)}</p>
                         </div>
                     </div>
                 )}
@@ -705,9 +705,9 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
                                             <span className="font-medium">{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
                                             <span className="font-medium">{formatCurrency(payment.amount, payment.currency)}</span>
                                         </div>
-                                        {payment.tdsDeducted && payment.tdsDeducted > 0 && (
+                                        {payment.tdsAmount && payment.tdsAmount > 0 && (
                                             <div className="flex justify-between text-xs text-blue-700 mt-1">
-                                                <span>TDS Deducted: {formatCurrency(payment.tdsDeducted, payment.currency)}</span>
+                                                <span>TDS Deducted: {formatCurrency(payment.tdsAmount, payment.currency)}</span>
                                                 {payment.tdsCertificateRef && <span>Ref: {payment.tdsCertificateRef}</span>}
                                             </div>
                                         )}

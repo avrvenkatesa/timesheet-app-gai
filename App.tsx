@@ -905,10 +905,10 @@ const AppProvider = ({ children }: { children: ReactNode }) => {
             // Migrate payments
             setPayments(prev => {
                 const updated = prev.map(payment => {
-                    if (payment.tdsDeducted === undefined) {
+                    if (payment.tdsAmount === undefined) {
                         return {
                             ...payment,
-                            tdsDeducted: undefined,
+                            tdsAmount: undefined,
                             tdsCertificateRef: undefined
                         };
                     }
