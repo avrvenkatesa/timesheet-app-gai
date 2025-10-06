@@ -673,6 +673,8 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
     const [manualAmount, setManualAmount] = useState('');
     const [manualCurrency, setManualCurrency] = useState<Currency>('USD' as Currency);
     const [description, setDescription] = useState('');
+    const [tdsApplicable, setTdsApplicable] = useState(false);
+    const [tdsRate, setTdsRate] = useState(10);
 
     const unbilledEntries = useMemo(() => {
         if (!selectedClientId) return [];
@@ -741,6 +743,9 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             });
         }
 
+        const invoiceAmount = isManualInvoice ? parseFloat(manualAmount) : calculatedTotal;
+        const calculatedTdsAmount = tdsApplicable ? (invoiceAmount * tdsRate / 100) : 0;
+
         onSave({
             clientId: selectedClientId,
             issueDate,
@@ -749,11 +754,15 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
             paymentStatus: PaymentStatus.Unpaid,
             timeEntryIds: selectedEntryIds,
             expenseIds: selectedExpenseIds,
-            totalAmount: isManualInvoice ? parseFloat(manualAmount) : calculatedTotal,
+            totalAmount: invoiceAmount,
             currency: isManualInvoice ? manualCurrency : invoiceCurrency,
             paidAmount: 0,
             isRecurring: false,
-            notes: isManualInvoice ? description : undefined
+            notes: isManualInvoice ? description : undefined,
+            tdsApplicable,
+            tdsRate: tdsApplicable ? tdsRate : undefined,
+            tdsAmount: tdsApplicable ? calculatedTdsAmount : undefined,
+            tdsReceived: 0
         });
     };
 
@@ -911,6 +920,42 @@ const InvoiceCreator = ({ onSave, onCancel }: { onSave: (data: Omit<Invoice, 'id
                         <Label htmlFor="dueDate">Due Date</Label>
                         <Input type="date" id="dueDate" value={dueDate} onChange={e => setDueDate(e.target.value)} />
                     </div>
+                </div>
+            </div>
+
+            <div>
+                <h4 className="font-medium text-slate-800 mb-2">5. Tax Deducted at Source (TDS)</h4>
+                <div className="bg-blue-50 p-4 rounded-lg space-y-3">
+                    <Label className="flex items-center cursor-pointer">
+                        <input
+                            type="checkbox"
+                            checked={tdsApplicable}
+                            onChange={(e) => setTdsApplicable(e.target.checked)}
+                            className="mr-2 h-4 w-4"
+                        />
+                        <span>Subject to TDS (Tax Deducted at Source)</span>
+                    </Label>
+                    
+                    {tdsApplicable && (
+                        <div className="space-y-3">
+                            <div>
+                                <Label htmlFor="tdsRate">TDS Rate (%)</Label>
+                                <Input
+                                    type="number"
+                                    id="tdsRate"
+                                    value={tdsRate}
+                                    onChange={(e) => setTdsRate(parseFloat(e.target.value) || 0)}
+                                    min="0"
+                                    max="100"
+                                    step="0.5"
+                                />
+                            </div>
+                            <div className="text-sm text-blue-800">
+                                <p>TDS Amount: {formatCurrency((isManualInvoice ? (parseFloat(manualAmount) || 0) : parseFloat(invoiceTotal.replace(/[^0-9.]/g, '')) || 0) * tdsRate / 100, isManualInvoice ? manualCurrency : 'USD')}</p>
+                                <p className="font-medium">Net Payable: {formatCurrency((isManualInvoice ? (parseFloat(manualAmount) || 0) : parseFloat(invoiceTotal.replace(/[^0-9.]/g, '')) || 0) * (100 - tdsRate) / 100, isManualInvoice ? manualCurrency : 'USD')}</p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
