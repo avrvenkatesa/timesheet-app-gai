@@ -100,6 +100,10 @@ export interface Payment {
   paymentDate: string;
   paymentMethod: string;
   notes?: string;
+  
+  // TDS (Tax Deducted at Source) fields
+  tdsAmount?: number;                // Amount withheld as TDS
+  tdsCertificateRef?: string;        // TDS certificate reference number
 }
 
 export interface RecurringInvoiceTemplate {
@@ -147,6 +151,12 @@ export interface Invoice {
   isRecurring: boolean;
   recurringTemplateId?: string;
   notes?: string;
+  
+  // TDS (Tax Deducted at Source) fields
+  tdsApplicable?: boolean;           // Is TDS applicable to this invoice?
+  tdsRate?: number;                  // TDS rate (default 10%)
+  tdsAmount?: number;                // Calculated: totalAmount × tdsRate
+  tdsReceived?: number;              // Actual TDS amount received from payments
 }
 
 export interface BillerInfo {
