@@ -654,19 +654,41 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
                          <div className="w-full max-w-sm">
                              <div className="border-t-2 border-slate-200 mt-4 pt-4 space-y-2">
                                  <div className="flex justify-between">
-                                    <span>Total</span>
+                                    <span>Invoice Total</span>
                                     <span className="font-medium">{formatCurrency(invoice.totalAmount, invoice.currency)}</span>
                                 </div>
-                                <div className="flex justify-between">
-                                    <span>Paid</span>
+                                
+                                {invoice.tdsApplicable && (
+                                    <>
+                                        <div className="flex justify-between text-blue-700">
+                                            <span>TDS @ {invoice.tdsRate}%</span>
+                                            <span className="font-medium">-{formatCurrency(invoice.tdsAmount || 0, invoice.currency)}</span>
+                                        </div>
+                                        <div className="flex justify-between border-t pt-2 font-semibold">
+                                            <span>Net Payable</span>
+                                            <span>{formatCurrency(invoice.totalAmount - (invoice.tdsAmount || 0), invoice.currency)}</span>
+                                        </div>
+                                    </>
+                                )}
+
+                                <div className="flex justify-between border-t pt-2">
+                                    <span>Cash Received</span>
                                     <span className="font-medium text-green-600">
                                         -{formatCurrency(invoice.paidAmount, invoice.currency)}
                                     </span>
                                 </div>
+
+                                {invoice.tdsApplicable && invoice.tdsReceived > 0 && (
+                                    <div className="flex justify-between text-blue-700">
+                                        <span>TDS Received</span>
+                                        <span className="font-medium">-{formatCurrency(invoice.tdsReceived, invoice.currency)}</span>
+                                    </div>
+                                )}
+
                                 <div className="flex justify-between font-bold text-lg border-t pt-2">
                                     <span>Balance Due</span>
                                     <span className="text-primary-600">
-                                        {formatCurrency(invoice.totalAmount - invoice.paidAmount, invoice.currency)}
+                                        {formatCurrency(invoice.totalAmount - invoice.paidAmount - (invoice.tdsReceived || 0), invoice.currency)}
                                     </span>
                                 </div>
                             </div>
@@ -676,11 +698,22 @@ const InvoiceDetailModal = ({ invoice, onClose }: { invoice: Invoice, onClose: (
                     {invoicePayments.length > 0 && (
                         <div className="mt-8">
                             <h4 className="font-medium text-slate-800 mb-3">Payment History</h4>
-                            <div className="space-y-1">
+                            <div className="space-y-2">
                                 {invoicePayments.map(payment => (
-                                    <div key={payment.id} className="flex justify-between text-sm">
-                                        <span>{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
-                                        <span>{formatCurrency(payment.amount, payment.currency)}</span>
+                                    <div key={payment.id} className="border-b pb-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span className="font-medium">{formatDate(payment.paymentDate)} - {payment.paymentMethod}</span>
+                                            <span className="font-medium">{formatCurrency(payment.amount, payment.currency)}</span>
+                                        </div>
+                                        {payment.tdsDeducted && payment.tdsDeducted > 0 && (
+                                            <div className="flex justify-between text-xs text-blue-700 mt-1">
+                                                <span>TDS Deducted: {formatCurrency(payment.tdsDeducted, payment.currency)}</span>
+                                                {payment.tdsCertificateRef && <span>Ref: {payment.tdsCertificateRef}</span>}
+                                            </div>
+                                        )}
+                                        {payment.notes && (
+                                            <div className="text-xs text-slate-500 mt-1">{payment.notes}</div>
+                                        )}
                                     </div>
                                 ))}
                             </div>
